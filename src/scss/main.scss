@@ -1,0 +1,27 @@
+html {
+	font-size: 18px;
+}
+
+:root {
+	--theme-color: #a857f2;
+	--theme-color-alt: #c28fef;
+}
+
+a, a:visited {
+	color: var(--theme-color);
+	transition: all .3s;
+}
+
+a:hover {
+	color: var(--theme-color-alt);
+}
+
+body {
+	background: #0c0c0c;
+	font-family: "Hack";
+	color: white;
+	box-sizing: border-box;
+	margin: 0;
+	padding: 15px;
+	font-size: 1rem;
+}
