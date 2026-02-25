@@ -101,14 +101,23 @@ body {
 
 	&-preview {
 		flex-grow: 1;
-		display: flex;
-		align-items: center;
-		justify-content: center;
 		background: #222;
 		overflow: hidden;
 		position: relative;
 		cursor: crosshair;
 		background: repeating-conic-gradient(#333333 0 25%, #0000 0 50%) 50% / 34px 34px;
+
+		.preview-wrapper {
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%) scale(calc(1 / var(--browser-zoom, 1)));
+			width: calc(100% * var(--browser-zoom, 1));
+			height: calc(100% * var(--browser-zoom, 1));
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
 	}
 }
 

@@ -95,6 +95,10 @@ exportButton.on("click", () => {
 // Update canvas on change
 const canvas = getID("preview-canvas");
 const previewContainer = canvas.parentElement;
+function updateBrowserZoom() {
+	const dpr = window.devicePixelRatio || 1;
+	document.documentElement.style.setProperty("--browser-zoom", dpr);
+}
 
 function updateCanvasTransform() {
 	canvas.style.transform = `translate(${viewState.offset.x}px, ${viewState.offset.y}px) scale(${viewState.zoom})`;
@@ -113,8 +117,9 @@ function updateCanvas() {
 
 function fitToViewport() {
 	const padding = 40;
-	const availableWidth = previewContainer.clientWidth - padding;
-	const availableHeight = previewContainer.clientHeight - padding;
+	const dpr = window.devicePixelRatio || 1;
+	const availableWidth = (previewContainer.clientWidth * dpr) - padding;
+	const availableHeight = (previewContainer.clientHeight * dpr) - padding;
 	
 	const scaleX = availableWidth / PARAMS.canvas.width;
 	const scaleY = availableHeight / PARAMS.canvas.height;
@@ -141,8 +146,10 @@ window.addEventListener("pointermove", (e) => {
 	const dx = e.clientX - lastMousePos.x;
 	const dy = e.clientY - lastMousePos.y;
 	
-	viewState.offset.x += dx;
-	viewState.offset.y += dy;
+	// Adjust movement by browser zoom to keep it feel natural
+	const dpr = window.devicePixelRatio || 1;
+	viewState.offset.x += dx * dpr;
+	viewState.offset.y += dy * dpr;
 	viewState.autoFit = false;
 	
 	lastMousePos = { x: e.clientX, y: e.clientY };
@@ -180,6 +187,7 @@ zoomBinding.on("change", (ev) => {
 });
 
 window.addEventListener("resize", () => {
+	updateBrowserZoom();
 	if (!viewState.autoFit) return;
 	fitToViewport();
 	updateCanvasTransform();
@@ -190,6 +198,7 @@ canvasHeight.on("change", updateCanvas);
 canvasBg.on("change", updateCanvas);
 
 // Initial call
+updateBrowserZoom();
 updateCanvas();
 
 // Resizable Controls Panel
