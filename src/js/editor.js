@@ -217,15 +217,19 @@ function startResize(e) {
 	controlsPanel.style.transition = "none"; // Disable transition during resize
 }
 
+function collapsePanel() {
+	controlsPanel.classList.add("collapsed");
+	toggleControlsButton.classList.remove("hidden");
+	pane.refresh(); // Refresh Tweakpane to adjust layout
+}
+
 function resizePanel(e) {
 	if (!panelIsResizing) return;
 	
 	let newWidth = e.clientX;
 	
 	if (newWidth < COLLAPSED_PANEL_WIDTH) {
-		controlsPanel.classList.add("collapsed");
-		toggleControlsButton.classList.remove("hidden");
-		pane.refresh(); // Refresh Tweakpane to adjust layout
+		collapsePanel();
 		return;
 	}
 	
@@ -252,8 +256,18 @@ toggleControlsButton.addEventListener("click", () => {
 	controlsPanel.classList.remove("collapsed");
 	controlsPanel.style.width = `${DEFAULT_PANEL_WIDTH}px`; // Restore to last known width
 	toggleControlsButton.classList.add("hidden");
+	pane.expanded = true;
 	pane.refresh(); // Refresh Tweakpane
 });
+
+pane.on("fold", (ev) => {
+	if (ev.expanded) return;
+	collapsePanel();
+});
+
+if (window.innerWidth < 600) {
+	collapsePanel();
+}
 
 
 // DEBUG STUFF HERE:
