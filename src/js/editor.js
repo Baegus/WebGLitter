@@ -1,4 +1,4 @@
-import { getID } from "./modules/utils";
+import { getID } from "./modules/utils.js";
 import { Pane } from "tweakpane";
 import { GradientPluginBundle } from "tweakpane-plugin-gradient";
 
