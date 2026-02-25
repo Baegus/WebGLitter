@@ -164,10 +164,9 @@ zoomBinding.on("change", (ev) => {
 });
 
 window.addEventListener("resize", () => {
-	if (viewState.autoFit) {
-		fitToViewport();
-		updateCanvasTransform();
-	}
+	if (!viewState.autoFit) return;
+	fitToViewport();
+	updateCanvasTransform();
 });
 
 canvasWidth.on("change", updateCanvas);
@@ -177,7 +176,59 @@ canvasBg.on("change", updateCanvas);
 // Initial call
 updateCanvas();
 
+// Resizable Controls Panel
+const controlsPanel = getID("controls");
+const resizeHandle = controlsPanel.querySelector(".resize-handle");
+const toggleControlsButton = document.querySelector(".toggle-controls");
 
+let panelIsResizing = false;
+const DEFAULT_PANEL_WIDTH = 290;
+const COLLAPSED_PANEL_WIDTH = 180; // Threshold to hide the panel
+
+function startResize(e) {
+	panelIsResizing = true;
+	document.body.style.cursor = "ew-resize";
+	document.body.style.userSelect = "none";
+	controlsPanel.style.transition = "none"; // Disable transition during resize
+}
+
+function resizePanel(e) {
+	if (!panelIsResizing) return;
+	
+	let newWidth = e.clientX;
+	
+	if (newWidth < COLLAPSED_PANEL_WIDTH) {
+		controlsPanel.classList.add("collapsed");
+		toggleControlsButton.classList.remove("hidden");
+		pane.refresh(); // Refresh Tweakpane to adjust layout
+		return;
+	}
+	
+	controlsPanel.classList.remove("collapsed");
+	toggleControlsButton.classList.add("hidden");
+	
+	controlsPanel.style.width = `${newWidth}px`;
+	pane.refresh(); // Refresh Tweakpane to adjust layout
+}
+
+function stopResize() {
+	panelIsResizing = false;
+	document.body.style.userSelect = "";
+	document.body.style.cursor = "default";
+	controlsPanel.style.transition = ""; // Re-enable transition
+}
+
+resizeHandle.addEventListener("pointerdown", startResize);
+window.addEventListener("pointermove", resizePanel);
+window.addEventListener("pointerup", stopResize);
+
+toggleControlsButton.addEventListener("click", () => {
+	if (!controlsPanel.classList.contains("collapsed")) return;
+	controlsPanel.classList.remove("collapsed");
+	controlsPanel.style.width = `${DEFAULT_PANEL_WIDTH}px`; // Restore to last known width
+	toggleControlsButton.classList.add("hidden");
+	pane.refresh(); // Refresh Tweakpane
+});
 
 
 // DEBUG STUFF HERE:

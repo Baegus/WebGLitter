@@ -33,12 +33,13 @@ body {
 	width: 100vw;
 
 	&-controls {
-		width: 300px;
+		position: relative;
+		min-width: 200px;
+		max-width: 50vw; /* 50% of viewport width */
 		height: 100%;
 		background: #1a1a1a;
 		border-right: 1px solid #333;
-		overflow-y: auto;
-		overflow-x: hidden;
+		overflow: hidden;
 		flex-shrink: 0;
 
 		// Tweakpane overrides to make it fill the container
@@ -47,6 +48,54 @@ body {
 			position: relative !important;
 			top: auto !important;
 			right: auto !important;
+		}
+
+		.resize-handle {
+			position: absolute;
+			right: 0;
+			top: 0;
+			height: 100%;
+			width: 5px;
+			cursor: ew-resize;
+			background: transparent;
+			z-index: 100;
+
+			&:hover {
+				background: var(--theme-color);
+			}
+		}
+
+		&.collapsed {
+			width: 0 !important;
+			border-right: none;
+			padding: 0;
+			overflow: hidden;
+			min-width: 0;
+		}
+	}
+
+	.toggle-controls {
+		position: absolute;
+		left: 0;
+		top: 10%;
+		z-index: 101;
+		background: var(--theme-color);
+		color: white;
+		border: none;
+		padding: 10px 5px;
+		cursor: pointer;
+		border-top-right-radius: 5px;
+		border-bottom-right-radius: 5px;
+		transition: opacity 0.3s;
+		opacity: 0.9;
+		user-select: none;
+
+		&:hover {
+			opacity: 1;
+		}
+
+		&.hidden {
+			display: none;
 		}
 	}
 
