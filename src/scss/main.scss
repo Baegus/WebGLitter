@@ -107,7 +107,11 @@ body {
 		position: relative;
 		cursor: crosshair;
 		touch-action: none;
-		background: repeating-conic-gradient(#333333 0 25%, #0000 0 50%) 50% / 34px 34px;
+		--square-size: calc(34px / var(--browser-zoom, 1));
+		background: repeating-conic-gradient(
+			#141414 0 25%,
+			#0000 0 50%
+		) 50% / var(--square-size) var(--square-size);
 
 		.preview-wrapper {
 			position: absolute;
