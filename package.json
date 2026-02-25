@@ -31,6 +31,8 @@
 		"staticPath": "static"
 	},
 	"dependencies": {
-		"animejs": "^4.0.2"
+		"animejs": "^4.0.2",
+		"tweakpane": "^4.0.5",
+		"tweakpane-plugin-gradient": "^0.1.5"
 	}
 }
