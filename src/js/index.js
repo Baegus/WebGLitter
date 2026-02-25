@@ -42,6 +42,22 @@ const zoomBinding = canvasFolder.addBinding(viewState, "zoom", {
 });
 
 const particlesFolder = pane.addFolder({ title: "Particles" });
+
+const presets = {
+	"Default": { setting1: "value1" },
+	"Fire": { setting1: "value1" },
+	"Rain": { setting1: "value1" },
+};
+const presetBlade = particlesFolder.addBlade({
+	view: "list",
+	label: "Preset",
+	options: presets,
+	value: presets.Default,
+});
+presetBlade.on("change", (ev) => {
+	console.log("Preset changed", ev.value);
+});
+
 const gradientBlade = particlesFolder.addBlade({
 	view: "gradient",
 	label: "Color Gradient",
