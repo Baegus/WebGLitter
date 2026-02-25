@@ -130,36 +130,72 @@ function fitToViewport() {
 }
 
 // Interaction Listeners
-let isDragging = false;
-let lastMousePos = { x: 0, y: 0 };
+const activePointers = new Map();
+let initialPinchDistance = 0;
+let initialPinchZoom = 1;
 
 previewContainer.addEventListener("pointerdown", (e) => {
-	if (e.button !== 0) return; // Left click only
-	isDragging = true;
-	lastMousePos = { x: e.clientX, y: e.clientY };
-	previewContainer.style.cursor = "grabbing";
+	if (e.pointerType === "mouse" && e.button !== 0) return;
+	activePointers.set(e.pointerId, e);
+	
+	if (activePointers.size === 1) {
+		previewContainer.style.cursor = "grabbing";
+	} else if (activePointers.size === 2) {
+		const pointers = Array.from(activePointers.values());
+		initialPinchDistance = Math.hypot(
+			pointers[0].clientX - pointers[1].clientX,
+			pointers[0].clientY - pointers[1].clientY
+		);
+		initialPinchZoom = viewState.zoom;
+	}
 });
 
 window.addEventListener("pointermove", (e) => {
-	if (!isDragging) return;
+	if (!activePointers.has(e.pointerId)) return;
 	
-	const dx = e.clientX - lastMousePos.x;
-	const dy = e.clientY - lastMousePos.y;
-	
-	// Adjust movement by browser zoom to keep it feel natural
+	const prevPointer = activePointers.get(e.pointerId);
 	const dpr = window.devicePixelRatio || 1;
-	viewState.offset.x += dx * dpr;
-	viewState.offset.y += dy * dpr;
-	viewState.autoFit = false;
+
+	if (activePointers.size === 1) {
+		const dx = e.clientX - prevPointer.clientX;
+		const dy = e.clientY - prevPointer.clientY;
+		
+		viewState.offset.x += dx * dpr;
+		viewState.offset.y += dy * dpr;
+		viewState.autoFit = false;
+		updateCanvasTransform();
+	} else if (activePointers.size === 2) {
+		// Update this pointer to get latest position for distance calculation
+		activePointers.set(e.pointerId, e);
+		const pointers = Array.from(activePointers.values());
+		const currentDistance = Math.hypot(
+			pointers[0].clientX - pointers[1].clientX,
+			pointers[0].clientY - pointers[1].clientY
+		);
+		
+		if (initialPinchDistance > 0) {
+			const zoomFactor = currentDistance / initialPinchDistance;
+			const newZoom = Math.min(Math.max(initialPinchZoom * zoomFactor, 0.1), 5);
+			
+			viewState.zoom = newZoom;
+			viewState.autoFit = false;
+			zoomBinding.refresh();
+			updateCanvasTransform();
+		}
+	}
 	
-	lastMousePos = { x: e.clientX, y: e.clientY };
-	updateCanvasTransform();
+	activePointers.set(e.pointerId, e);
 });
 
-window.addEventListener("pointerup", () => {
-	isDragging = false;
-	previewContainer.style.cursor = "crosshair";
-});
+const handlePointerUp = (e) => {
+	activePointers.delete(e.pointerId);
+	if (activePointers.size === 0) {
+		previewContainer.style.cursor = "crosshair";
+	}
+};
+
+window.addEventListener("pointerup", handlePointerUp);
+window.addEventListener("pointercancel", handlePointerUp);
 
 previewContainer.addEventListener("wheel", (e) => {
 	e.preventDefault();
@@ -211,6 +247,7 @@ const DEFAULT_PANEL_WIDTH = 290;
 const COLLAPSED_PANEL_WIDTH = 180; // Threshold to hide the panel
 
 function startResize(e) {
+	if (e.pointerType === "mouse" && e.button !== 0) return;
 	panelIsResizing = true;
 	document.body.style.cursor = "ew-resize";
 	document.body.style.userSelect = "none";
@@ -221,6 +258,11 @@ function collapsePanel() {
 	controlsPanel.classList.add("collapsed");
 	toggleControlsButton.classList.remove("hidden");
 	pane.refresh(); // Refresh Tweakpane to adjust layout
+	
+	if (viewState.autoFit) {
+		fitToViewport();
+		updateCanvasTransform();
+	}
 }
 
 function resizePanel(e) {
@@ -238,6 +280,11 @@ function resizePanel(e) {
 	
 	controlsPanel.style.width = `${newWidth}px`;
 	pane.refresh(); // Refresh Tweakpane to adjust layout
+	
+	if (viewState.autoFit) {
+		fitToViewport();
+		updateCanvasTransform();
+	}
 }
 
 function stopResize() {
@@ -258,6 +305,11 @@ toggleControlsButton.addEventListener("click", () => {
 	toggleControlsButton.classList.add("hidden");
 	pane.expanded = true;
 	pane.refresh(); // Refresh Tweakpane
+
+	if (viewState.autoFit) {
+		fitToViewport();
+		updateCanvasTransform();
+	}
 });
 
 pane.on("fold", (ev) => {

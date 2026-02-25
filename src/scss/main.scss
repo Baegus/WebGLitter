@@ -39,7 +39,7 @@ body {
 		height: 100%;
 		background: #1a1a1a;
 		border-right: 1px solid #333;
-		overflow: hidden;
+		overflow-x: hidden;
 		flex-shrink: 0;
 
 		// Tweakpane overrides to make it fill the container
@@ -55,10 +55,11 @@ body {
 			right: 0;
 			top: 0;
 			height: 100%;
-			width: 5px;
+			width: 10px;
 			cursor: ew-resize;
 			background: transparent;
 			z-index: 100;
+			touch-action: none;
 
 			&:hover {
 				background: var(--theme-color);
@@ -105,6 +106,7 @@ body {
 		overflow: hidden;
 		position: relative;
 		cursor: crosshair;
+		touch-action: none;
 		background: repeating-conic-gradient(#333333 0 25%, #0000 0 50%) 50% / 34px 34px;
 
 		.preview-wrapper {
