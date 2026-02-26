@@ -17,6 +17,7 @@ export default class WebGLitter {
 			particleSize: 10.0,
 			fpsLimit: 60,
 			emitterPosition: { x: 0.5, y: 0.5 },
+			emitterSize: { x: 0, y: 0 },
 			emitterAngle: 0,
 			emitterSpread: 360,
 			particleShape: "circle",
@@ -317,6 +318,8 @@ export default class WebGLitter {
 			const gpu = this.gpuData;
 			const ex = this.config.emitterPosition.x * this.canvas.width;
 			const ey = this.config.emitterPosition.y * this.canvas.height;
+			const ew = this.config.emitterSize.x * this.canvas.width;
+			const eh = this.config.emitterSize.y * this.canvas.height;
 			const eAngle = this.config.emitterAngle * (Math.PI / 180.0);
 			const eSpread = this.config.emitterSpread * (Math.PI / 180.0);
 			const bSpeed = this.config.particleSpeed;
@@ -331,8 +334,8 @@ export default class WebGLitter {
 				let life = cpu[i6 + 5];
 
 				if (age >= life) {
-					cpu[i6] = ex;
-					cpu[i6 + 1] = ey;
+					cpu[i6] = ex + (Math.random() - 0.5) * ew;
+					cpu[i6 + 1] = ey + (Math.random() - 0.5) * eh;
 
 					let angle = eAngle + (Math.random() - 0.5) * eSpread;
 					let speed = bSpeed + Math.random() * bSpeed * 0.5;

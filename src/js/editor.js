@@ -19,6 +19,7 @@ const PARAMS = {
 		particleSize: 10.0,
 		fpsLimit: 60,
 		emitterPosition: { x: 0.5, y: 0.5 },
+		emitterSize: { x: 0, y: 0 },
 		emitterAngle: 0,
 		emitterDirection: { x: 1, y: 0 },
 		emitterSpread: 360,
@@ -85,6 +86,11 @@ const emitterPosBinding = emitterFolder.addBinding(PARAMS.particleSystem, "emitt
 	x: { min: 0, max: 1, step: 0.01 },
 	y: { min: 0, max: 1, step: 0.01 },
 	label: "Position"
+});
+const emitterSizeBinding = emitterFolder.addBinding(PARAMS.particleSystem, "emitterSize", {
+	x: { min: 0, max: 1, step: 0.01 },
+	y: { min: 0, max: 1, step: 0.01 },
+	label: "Size (W/H)"
 });
 const emitterDirectionBinding = emitterFolder.addBinding(PARAMS.particleSystem, "emitterDirection", {
 	x: { min: -1, max: 1 },
@@ -174,6 +180,9 @@ fpsLimitBinding.on("change", (ev) => {
 });
 emitterPosBinding.on("change", (ev) => {
 	particleSystem.updateConfig({ emitterPosition: ev.value });
+});
+emitterSizeBinding.on("change", (ev) => {
+	particleSystem.updateConfig({ emitterSize: ev.value });
 });
 emitterDirectionBinding.on("change", (ev) => {
 	const angle = Math.atan2(ev.value.y, ev.value.x) * (180 / Math.PI);
