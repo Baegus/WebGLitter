@@ -1,6 +1,8 @@
 import { getID } from "./modules/utils.js";
 import { Pane } from "tweakpane";
 import { GradientPluginBundle } from "tweakpane-plugin-gradient";
+import * as TweakpaneFileImportPlugin from "tweakpane-plugin-file-import";
+import WebGLitter from "./WebGLitter.js";
 
 const debugging = process.env.DEBUG == "true";
 
@@ -11,7 +13,19 @@ const PARAMS = {
 		backgroundColor: "#000000ff",
 	},
 	particleSystem: {
+		emissionRate: 5000,
+		particleLife: 2.0,
+		particleSpeed: 100.0,
+		particleSize: 10.0,
+		fpsLimit: 60,
+		emitterPosition: { x: 640, y: 360 },
+		emitterAngle: 0,
+		emitterDirection: { x: 1, y: 0 },
+		emitterSpread: 360,
+		particleShape: "circle",
+		particleImage: "",
 		colorGradient: null, // Will be managed by the blade
+		opacityGradient: null, // Will be managed by the blade
 	},
 };
 
@@ -21,6 +35,7 @@ const pane = new Pane({
 });
 
 pane.registerPlugin(GradientPluginBundle);
+pane.registerPlugin(TweakpaneFileImportPlugin);
 
 const canvasFolder = pane.addFolder({ title: "Canvas and Preview" });
 const canvasWidth = canvasFolder.addBinding(PARAMS.canvas, "width", { min: 100, max: 2000, step: 1 });
@@ -58,6 +73,47 @@ presetBlade.on("change", (ev) => {
 	console.log("Preset changed", ev.value);
 });
 
+const emissionRateBinding = particlesFolder.addBinding(PARAMS.particleSystem, "emissionRate", { min: 10, max: 100000, step: 10, label: "Emission Rate" });
+const particleLifeBinding = particlesFolder.addBinding(PARAMS.particleSystem, "particleLife", { min: 0.1, max: 10.0, step: 0.1, label: "Particle Life" });
+const particleSpeedBinding = particlesFolder.addBinding(PARAMS.particleSystem, "particleSpeed", { min: 10, max: 1000, step: 1, label: "Particle Speed" });
+const particleSizeBinding = particlesFolder.addBinding(PARAMS.particleSystem, "particleSize", { min: 1, max: 100, step: 1, label: "Particle Size" });
+const fpsLimitBinding = particlesFolder.addBinding(PARAMS.particleSystem, "fpsLimit", { min: 0, max: 240, step: 1, label: "FPS Limit (0=unlimited)" });
+
+const emitterFolder = pane.addFolder({ title: "Emitter" });
+const emitterPosBinding = emitterFolder.addBinding(PARAMS.particleSystem, "emitterPosition", {
+	x: { min: 0, max: 2000, step: 1 },
+	y: { min: 0, max: 2000, step: 1 },
+	label: "Position"
+});
+const emitterDirectionBinding = emitterFolder.addBinding(PARAMS.particleSystem, "emitterDirection", {
+	x: { min: -1, max: 1 },
+	y: { min: -1, max: 1 },
+	picker: "inline",
+	expanded: true,
+	label: "Direction"
+});
+const emitterSpreadBinding = emitterFolder.addBinding(PARAMS.particleSystem, "emitterSpread", {
+	min: 0, max: 360, step: 1, label: "Spread"
+});
+
+const shapeFolder = pane.addFolder({ title: "Particle Shape" });
+const shapeBinding = shapeFolder.addBinding(PARAMS.particleSystem, "particleShape", {
+	options: {
+		Circle: "circle",
+		Square: "square",
+		Image: "image",
+	},
+	label: "Shape"
+});
+
+const imageBinding = shapeFolder.addBinding(PARAMS.particleSystem, "particleImage", {
+	view: "file-input",
+	lineCount: 3,
+	filetypes: [".png", ".jpg", ".jpeg", ".webp"],
+	label: "Image"
+});
+imageBinding.hidden = PARAMS.particleSystem.particleShape !== "image";
+
 const gradientBlade = particlesFolder.addBlade({
 	view: "gradient",
 	label: "Color Gradient",
@@ -66,7 +122,7 @@ const gradientBlade = particlesFolder.addBlade({
 		layout: "inline",
 		expanded: true,
 	},
-	alphaPicker: true,
+	alphaPicker: false,
 	timePicker: true,
 	initialPoints: [
 		{ time: 0, value: { r: 255, g: 0, b: 0, a: 1 } },
@@ -74,13 +130,71 @@ const gradientBlade = particlesFolder.addBlade({
 	],
 });
 
+const opacityGradientBlade = particlesFolder.addBlade({
+	view: "gradient",
+	label: "Opacity (Life)",
+	colorPicker: true,
+	alphaPicker: false,
+	timePicker: true,
+	initialPoints: [
+		{ time: 0, value: { r: 255, g: 255, b: 255, a: 1 } },
+		{ time: 1, value: { r: 0, g: 0, b: 0, a: 1 } },
+	],
+});
+
 // Update PARAMS when gradient changes
 gradientBlade.on("change", (ev) => {
 	PARAMS.particleSystem.colorGradient = ev.value.points;
+	particleSystem.updateConfig({ colorGradient: ev.value.points });
+});
+
+opacityGradientBlade.on("change", (ev) => {
+	PARAMS.particleSystem.opacityGradient = ev.value.points;
+	particleSystem.updateConfig({ opacityGradient: ev.value.points });
 });
 
 // Sync initial value
 PARAMS.particleSystem.colorGradient = gradientBlade.value.points;
+PARAMS.particleSystem.opacityGradient = opacityGradientBlade.value.points;
+
+emissionRateBinding.on("change", (ev) => {
+	particleSystem.updateConfig({ emissionRate: ev.value });
+});
+particleLifeBinding.on("change", (ev) => {
+	particleSystem.updateConfig({ particleLife: ev.value });
+});
+particleSpeedBinding.on("change", (ev) => {
+	particleSystem.updateConfig({ particleSpeed: ev.value });
+});
+particleSizeBinding.on("change", (ev) => {
+	particleSystem.updateConfig({ particleSize: ev.value });
+});
+fpsLimitBinding.on("change", (ev) => {
+	particleSystem.updateConfig({ fpsLimit: ev.value });
+});
+emitterPosBinding.on("change", (ev) => {
+	particleSystem.updateConfig({ emitterPosition: ev.value });
+});
+emitterDirectionBinding.on("change", (ev) => {
+	const angle = Math.atan2(ev.value.y, ev.value.x) * (180 / Math.PI);
+	PARAMS.particleSystem.emitterAngle = angle;
+	particleSystem.updateConfig({ emitterAngle: angle });
+});
+emitterSpreadBinding.on("change", (ev) => {
+	particleSystem.updateConfig({ emitterSpread: ev.value });
+});
+shapeBinding.on("change", (ev) => {
+	particleSystem.updateConfig({ particleShape: ev.value });
+	imageBinding.hidden = ev.value !== "image";
+});
+imageBinding.on("change", (ev) => {
+	if (ev.value) {
+		const url = URL.createObjectURL(ev.value);
+		particleSystem.updateConfig({ particleImage: url });
+	} else {
+		particleSystem.updateConfig({ particleImage: null });
+	}
+});
 
 pane.addBlade({ view: "separator" });
 const exportButton = pane.addButton({ title: "Export JSON" });
@@ -95,6 +209,10 @@ exportButton.on("click", () => {
 // Update canvas on change
 const canvas = getID("preview-canvas");
 const previewContainer = canvas.parentElement;
+
+// Initialize WebGLitter
+const particleSystem = new WebGLitter(canvas, PARAMS.particleSystem);
+
 function updateBrowserZoom() {
 	const dpr = window.devicePixelRatio || 1;
 	document.documentElement.style.setProperty("--browser-zoom", dpr);
@@ -109,6 +227,10 @@ function updateCanvas() {
 	canvas.height = PARAMS.canvas.height;
 	canvas.style.backgroundColor = PARAMS.canvas.backgroundColor;
 	
+	if (particleSystem) {
+		particleSystem.gl.viewport(0, 0, canvas.width, canvas.height);
+	}
+
 	if (viewState.autoFit) {
 		fitToViewport();
 	}

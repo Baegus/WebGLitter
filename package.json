@@ -3,6 +3,8 @@
 	"author": "Jaroslav Petrnoušek",
 	"version": "1.0.0",
 	"description": "A Parcel template for my portfolio website",
+	"main": "dist/lib/WebGLitter.js",
+	"module": "dist/lib/WebGLitter.js",
 	"browserslist": "> 0.25%, last 2 versions, not dead",
 	"targets": {
 		"public": {
@@ -11,6 +13,11 @@
 			"source": [
 				"src/pug/index.pug"
 			]
+		},
+		"lib": {
+			"source": "src/js/WebGLitter.js",
+			"distDir": "dist/lib",
+			"outputFormat": "esmodule"
 		}
 	},
 	"scripts": {
@@ -33,6 +40,7 @@
 	"dependencies": {
 		"animejs": "^4.0.2",
 		"tweakpane": "^4.0.5",
+		"tweakpane-plugin-file-import": "^1.2.0",
 		"tweakpane-plugin-gradient": "^0.1.5"
 	}
 }
