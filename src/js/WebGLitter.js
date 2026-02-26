@@ -16,7 +16,7 @@ export default class WebGLitter {
 			particleSpeed: 100.0,
 			particleSize: 10.0,
 			fpsLimit: 60,
-			emitterPosition: { x: 640, y: 360 },
+			emitterPosition: { x: 0.5, y: 0.5 },
 			emitterAngle: 0,
 			emitterSpread: 360,
 			particleShape: "circle",
@@ -197,7 +197,7 @@ export default class WebGLitter {
 				float r2 = rand(vec2(float(gl_VertexID), u_seed + 1.0));
 				
 				// Emitter position
-				v_position = u_emitterPosition;
+				v_position = u_emitterPosition * u_resolution;
 				
 				// Random velocity direction
 				float spreadRad = radians(u_emitterSpread);

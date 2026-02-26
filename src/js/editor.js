@@ -18,7 +18,7 @@ const PARAMS = {
 		particleSpeed: 100.0,
 		particleSize: 10.0,
 		fpsLimit: 60,
-		emitterPosition: { x: 640, y: 360 },
+		emitterPosition: { x: 0.5, y: 0.5 },
 		emitterAngle: 0,
 		emitterDirection: { x: 1, y: 0 },
 		emitterSpread: 360,
@@ -73,16 +73,17 @@ presetBlade.on("change", (ev) => {
 	console.log("Preset changed", ev.value);
 });
 
-const emissionRateBinding = particlesFolder.addBinding(PARAMS.particleSystem, "emissionRate", { min: 10, max: 100000, step: 10, label: "Emission Rate" });
-const particleLifeBinding = particlesFolder.addBinding(PARAMS.particleSystem, "particleLife", { min: 0.1, max: 10.0, step: 0.1, label: "Particle Life" });
+const lifetimeFolder = particlesFolder.addFolder({ title: "Lifetime" });
+const emissionRateBinding = particlesFolder.addBinding(PARAMS.particleSystem, "emissionRate", { min: 1, max: 10000, step: 5, label: "Emission Rate" });
+const particleLifeBinding = lifetimeFolder.addBinding(PARAMS.particleSystem, "particleLife", { min: 0.1, max: 10.0, step: 0.1, label: "Lifetime (s)" });
 const particleSpeedBinding = particlesFolder.addBinding(PARAMS.particleSystem, "particleSpeed", { min: 10, max: 1000, step: 1, label: "Particle Speed" });
 const particleSizeBinding = particlesFolder.addBinding(PARAMS.particleSystem, "particleSize", { min: 1, max: 100, step: 1, label: "Particle Size" });
 const fpsLimitBinding = particlesFolder.addBinding(PARAMS.particleSystem, "fpsLimit", { min: 0, max: 240, step: 1, label: "FPS Limit (0=unlimited)" });
 
 const emitterFolder = pane.addFolder({ title: "Emitter" });
 const emitterPosBinding = emitterFolder.addBinding(PARAMS.particleSystem, "emitterPosition", {
-	x: { min: 0, max: 2000, step: 1 },
-	y: { min: 0, max: 2000, step: 1 },
+	x: { min: 0, max: 1, step: 0.01 },
+	y: { min: 0, max: 1, step: 0.01 },
 	label: "Position"
 });
 const emitterDirectionBinding = emitterFolder.addBinding(PARAMS.particleSystem, "emitterDirection", {
@@ -120,7 +121,6 @@ const gradientBlade = particlesFolder.addBlade({
 	colorPicker: true,
 	colorPickerProps: {
 		layout: "inline",
-		expanded: true,
 	},
 	alphaPicker: false,
 	timePicker: true,
@@ -130,9 +130,9 @@ const gradientBlade = particlesFolder.addBlade({
 	],
 });
 
-const opacityGradientBlade = particlesFolder.addBlade({
+const opacityGradientBlade = lifetimeFolder.addBlade({
 	view: "gradient",
-	label: "Opacity (Life)",
+	label: "Opacity Over Lifetime",
 	colorPicker: true,
 	alphaPicker: false,
 	timePicker: true,
