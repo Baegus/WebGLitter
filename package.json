@@ -27,6 +27,7 @@
 		"build": "parcel build --no-source-maps --log-level error --config ./parcel/.parcel.prod"
 	},
 	"devDependencies": {
+		"@parcel/plugin": "^2.16.4",
 		"@parcel/transformer-pug": "^2.15.2",
 		"@parcel/transformer-sass": "^2.15.2",
 		"express": "^4.19.2",
