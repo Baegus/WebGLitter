@@ -3,7 +3,7 @@ const debugging = process.env.DEBUG == "true";
 export default class WebGLitter {
 	constructor(canvas, config = {}) {
 		this.canvas = canvas;
-		this.gl = canvas.getContext("webgl2", { antialias: false, alpha: true, premultipliedAlpha: false });
+		this.gl = canvas.getContext("webgl2", { antialias: false, alpha: true });
 		
 		if (!this.gl) {
 			throw new Error("WebGL 2 is not supported in this browser.");
@@ -200,7 +200,7 @@ export default class WebGLitter {
 			color *= texture(u_particleTexture, texCoord);
 			` : ''}
 			
-			outColor = color;
+			outColor = vec4(color.rgb * color.a, color.a);
 		}
 		`;
 
