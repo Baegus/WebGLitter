@@ -39,9 +39,11 @@ pane.registerPlugin(GradientPluginBundle);
 pane.registerPlugin(TweakpaneFileImportPlugin);
 
 const canvasFolder = pane.addFolder({ title: "Canvas and Preview" });
-const canvasWidth = canvasFolder.addBinding(PARAMS.canvas, "width", { min: 100, max: 2000, step: 1 });
-const canvasHeight = canvasFolder.addBinding(PARAMS.canvas, "height", { min: 100, max: 2000, step: 1 });
-const canvasBg = canvasFolder.addBinding(PARAMS.canvas, "backgroundColor", { view: "color", alpha: true });
+const bindCanvas = (key, options) => canvasFolder.addBinding(PARAMS.canvas, key, options).on("change", () => updateCanvas());
+
+bindCanvas("width", { min: 100, max: 2000, step: 1 });
+bindCanvas("height", { min: 100, max: 2000, step: 1 });
+bindCanvas("backgroundColor", { view: "color", alpha: true });
 
 // Zoom & Pan State (not exported)
 const viewState = {
@@ -75,144 +77,117 @@ presetBlade.on("change", (ev) => {
 });
 
 const lifetimeFolder = particlesFolder.addFolder({ title: "Lifetime" });
-const emissionRateBinding = particlesFolder.addBinding(PARAMS.particleSystem, "emissionRate", { min: 1, max: 10000, step: 5, label: "Emission Rate" });
-const particleLifeBinding = lifetimeFolder.addBinding(PARAMS.particleSystem, "particleLife", { min: 0.1, max: 10.0, step: 0.1, label: "Lifetime (s)" });
-const particleSpeedBinding = particlesFolder.addBinding(PARAMS.particleSystem, "particleSpeed", { min: 10, max: 1000, step: 1, label: "Particle Speed" });
-const particleSizeBinding = particlesFolder.addBinding(PARAMS.particleSystem, "particleSize", { min: 1, max: 100, step: 1, label: "Particle Size" });
-const fpsLimitBinding = particlesFolder.addBinding(PARAMS.particleSystem, "fpsLimit", { min: 0, max: 240, step: 1, label: "FPS Limit (0=unlimited)" });
+
+let particleSystem; // Declare early so bindings can use it
+
+// Helper to reduce boilerplate for particle system bindings
+const bindParticle = (folder, key, options, customChange) => {
+	const binding = folder.addBinding(PARAMS.particleSystem, key, options);
+	binding.on("change", (ev) => {
+		if (!particleSystem) return;
+		if (customChange) {
+			customChange(ev.value, binding);
+		} else {
+			particleSystem.updateConfig({ [key]: ev.value });
+		}
+	});
+	return binding;
+};
+
+bindParticle(particlesFolder, "emissionRate", { min: 1, max: 10000, step: 5, label: "Emission Rate" });
+bindParticle(lifetimeFolder, "particleLife", { min: 0.1, max: 10.0, step: 0.1, label: "Lifetime (s)" });
+bindParticle(particlesFolder, "particleSpeed", { min: 10, max: 1000, step: 1, label: "Particle Speed" });
+bindParticle(particlesFolder, "particleSize", { min: 1, max: 100, step: 1, label: "Particle Size" });
+bindParticle(particlesFolder, "fpsLimit", { min: 0, max: 240, step: 1, label: "FPS Limit (0=unlimited)" });
 
 const emitterFolder = pane.addFolder({ title: "Emitter" });
-const emitterPosBinding = emitterFolder.addBinding(PARAMS.particleSystem, "emitterPosition", {
+const emitterPosBinding = bindParticle(emitterFolder, "emitterPosition", {
 	x: { min: -1, max: 1, step: 0.01 },
 	y: { min: -1, max: 1, step: 0.01 },
 	label: "Position"
+}, (val) => {
+	const x = (val.x + 1) / 2;
+	const y = (val.y + 1) / 2;
+	particleSystem.updateConfig({ emitterPosition: { x, y } });
 });
-const emitterSizeBinding = emitterFolder.addBinding(PARAMS.particleSystem, "emitterSize", {
+
+bindParticle(emitterFolder, "emitterSize", {
 	x: { min: 0, max: 1, step: 0.01 },
 	y: { min: 0, max: 1, step: 0.01 },
 	label: "Size (W/H)"
 });
-const emitterDirectionBinding = emitterFolder.addBinding(PARAMS.particleSystem, "emitterDirection", {
+
+bindParticle(emitterFolder, "emitterDirection", {
 	x: { min: -1, max: 1 },
 	y: { min: -1, max: 1 },
 	picker: "inline",
 	expanded: true,
 	label: "Direction"
+}, (val) => {
+	const angle = Math.atan2(val.y, val.x) * (180 / Math.PI);
+	PARAMS.particleSystem.emitterAngle = angle;
+	particleSystem.updateConfig({ emitterAngle: angle });
 });
-const emitterSpreadBinding = emitterFolder.addBinding(PARAMS.particleSystem, "emitterSpread", {
+
+bindParticle(emitterFolder, "emitterSpread", {
 	min: 0, max: 360, step: 1, label: "Spread"
 });
 
 const shapeFolder = pane.addFolder({ title: "Particle Shape" });
-const shapeBinding = shapeFolder.addBinding(PARAMS.particleSystem, "particleShape", {
+bindParticle(shapeFolder, "particleShape", {
 	options: {
 		Circle: "circle",
 		Square: "square",
 		Image: "image",
 	},
 	label: "Shape"
+}, (val) => {
+	particleSystem.updateConfig({ particleShape: val });
+	imageBinding.hidden = val !== "image";
 });
 
-const imageBinding = shapeFolder.addBinding(PARAMS.particleSystem, "particleImage", {
+const imageBinding = bindParticle(shapeFolder, "particleImage", {
 	view: "file-input",
 	lineCount: 3,
 	filetypes: [".png", ".jpg", ".jpeg", ".webp"],
 	label: "Image"
-});
-imageBinding.hidden = PARAMS.particleSystem.particleShape !== "image";
-
-const gradientBlade = particlesFolder.addBlade({
-	view: "gradient",
-	label: "Color Gradient",
-	colorPicker: true,
-	colorPickerProps: {
-		layout: "inline",
-	},
-	alphaPicker: false,
-	timePicker: true,
-	initialPoints: [
-		{ time: 0, value: { r: 255, g: 0, b: 0, a: 1 } },
-		{ time: 1, value: { r: 0, g: 0, b: 255, a: 1 } },
-	],
-});
-
-const opacityGradientBlade = lifetimeFolder.addBlade({
-	view: "gradient",
-	label: "Opacity Over Lifetime",
-	colorPicker: true,
-	alphaPicker: false,
-	timePicker: true,
-	initialPoints: [
-		{ time: 0, value: { r: 255, g: 255, b: 255, a: 1 } },
-		{ time: 1, value: { r: 0, g: 0, b: 0, a: 1 } },
-	],
-});
-
-// Update PARAMS when gradient changes
-gradientBlade.on("change", (ev) => {
-	PARAMS.particleSystem.colorGradient = ev.value.points;
-	particleSystem.updateConfig({ colorGradient: ev.value.points });
-});
-
-opacityGradientBlade.on("change", (ev) => {
-	PARAMS.particleSystem.opacityGradient = ev.value.points;
-	particleSystem.updateConfig({ opacityGradient: ev.value.points });
-});
-
-// Sync initial value
-PARAMS.particleSystem.colorGradient = gradientBlade.value.points;
-PARAMS.particleSystem.opacityGradient = opacityGradientBlade.value.points;
-
-emissionRateBinding.on("change", (ev) => {
-	particleSystem.updateConfig({ emissionRate: ev.value });
-});
-particleLifeBinding.on("change", (ev) => {
-	particleSystem.updateConfig({ particleLife: ev.value });
-});
-particleSpeedBinding.on("change", (ev) => {
-	particleSystem.updateConfig({ particleSpeed: ev.value });
-});
-particleSizeBinding.on("change", (ev) => {
-	particleSystem.updateConfig({ particleSize: ev.value });
-});
-fpsLimitBinding.on("change", (ev) => {
-	particleSystem.updateConfig({ fpsLimit: ev.value });
-});
-const convertAndSetEmitterPosition = () => {
-	const val = emitterPosBinding.controller.value.rawValue;
-	const x = (val.x + 1) / 2;
-	const y = (val.y + 1) / 2;
-	particleSystem.updateConfig({ emitterPosition: { x, y } });
-};
-emitterPosBinding.on("change", (ev) => {
-	convertAndSetEmitterPosition();
-});
-
-emitterSizeBinding.on("change", (ev) => {
-	particleSystem.updateConfig({ emitterSize: ev.value });
-});
-emitterDirectionBinding.on("change", (ev) => {
-	const angle = Math.atan2(ev.value.y, ev.value.x) * (180 / Math.PI);
-	PARAMS.particleSystem.emitterAngle = angle;
-	particleSystem.updateConfig({ emitterAngle: angle });
-});
-emitterSpreadBinding.on("change", (ev) => {
-	particleSystem.updateConfig({ emitterSpread: ev.value });
-});
-shapeBinding.on("change", (ev) => {
-	particleSystem.updateConfig({ particleShape: ev.value });
-	imageBinding.hidden = ev.value !== "image";
-});
-imageBinding.on("change", (ev) => {
-	if (ev.value) {
-		const url = URL.createObjectURL(ev.value);
+}, (val) => {
+	if (val) {
+		const url = URL.createObjectURL(val);
 		particleSystem.updateConfig({ particleImage: url });
 	} else {
 		particleSystem.updateConfig({ particleImage: null });
 	}
 });
+imageBinding.hidden = PARAMS.particleSystem.particleShape !== "image";
 
+const bindGradient = (folder, key, label, initialPoints, alphaPicker = false) => {
+	const blade = folder.addBlade({
+		view: "gradient",
+		label: label,
+		colorPicker: true,
+		colorPickerProps: { layout: "inline" },
+		alphaPicker: alphaPicker,
+		timePicker: true,
+		initialPoints: initialPoints,
+	});
+	PARAMS.particleSystem[key] = blade.value.points;
+	blade.on("change", (ev) => {
+		PARAMS.particleSystem[key] = ev.value.points;
+		if (particleSystem) particleSystem.updateConfig({ [key]: ev.value.points });
+	});
+	return blade;
+};
 
+bindGradient(particlesFolder, "colorGradient", "Color Gradient", [
+	{ time: 0, value: { r: 255, g: 0, b: 0, a: 1 } },
+	{ time: 1, value: { r: 0, g: 0, b: 255, a: 1 } },
+]);
+
+bindGradient(lifetimeFolder, "opacityGradient", "Opacity Over Lifetime", [
+	{ time: 0, value: { r: 255, g: 255, b: 255, a: 1 } },
+	{ time: 1, value: { r: 0, g: 0, b: 0, a: 1 } },
+]);
 
 pane.addBlade({ view: "separator" });
 const exportButton = pane.addButton({ title: "Export JSON" });
@@ -224,14 +199,20 @@ exportButton.on("click", () => {
 	alert("Configuration exported to console!");
 });
 
-// Update canvas on change
 const canvas = getID("preview-canvas");
 const previewContainer = canvas.parentElement;
 
 // Initialize WebGLitter
-const particleSystem = new WebGLitter(canvas, PARAMS.particleSystem);
+particleSystem = new WebGLitter(canvas, PARAMS.particleSystem);
 
-convertAndSetEmitterPosition();
+// Trigger initial position conversion
+const initialPos = emitterPosBinding.controller.value.rawValue;
+particleSystem.updateConfig({ 
+	emitterPosition: { 
+		x: (initialPos.x + 1) / 2, 
+		y: (initialPos.y + 1) / 2 
+	} 
+});
 
 function updateBrowserZoom() {
 	const dpr = window.devicePixelRatio || 1;
@@ -371,10 +352,6 @@ window.addEventListener("resize", () => {
 	updateCanvasTransform();
 });
 
-canvasWidth.on("change", updateCanvas);
-canvasHeight.on("change", updateCanvas);
-canvasBg.on("change", updateCanvas);
-
 // Initial call
 updateBrowserZoom();
 updateCanvas();
@@ -396,15 +373,18 @@ function startResize(e) {
 	controlsPanel.style.transition = "none"; // Disable transition during resize
 }
 
-function collapsePanel() {
-	controlsPanel.classList.add("collapsed");
-	toggleControlsButton.classList.remove("hidden");
-	pane.refresh(); // Refresh Tweakpane to adjust layout
-	
+function refreshLayout() {
+	pane.refresh();
 	if (viewState.autoFit) {
 		fitToViewport();
 		updateCanvasTransform();
 	}
+}
+
+function collapsePanel() {
+	controlsPanel.classList.add("collapsed");
+	toggleControlsButton.classList.remove("hidden");
+	refreshLayout();
 }
 
 function resizePanel(e) {
@@ -421,12 +401,7 @@ function resizePanel(e) {
 	toggleControlsButton.classList.add("hidden");
 	
 	controlsPanel.style.width = `${newWidth}px`;
-	pane.refresh(); // Refresh Tweakpane to adjust layout
-	
-	if (viewState.autoFit) {
-		fitToViewport();
-		updateCanvasTransform();
-	}
+	refreshLayout();
 }
 
 function stopResize() {
@@ -446,12 +421,7 @@ toggleControlsButton.addEventListener("click", () => {
 	controlsPanel.style.width = `${DEFAULT_PANEL_WIDTH}px`; // Restore to last known width
 	toggleControlsButton.classList.add("hidden");
 	pane.expanded = true;
-	pane.refresh(); // Refresh Tweakpane
-
-	if (viewState.autoFit) {
-		fitToViewport();
-		updateCanvasTransform();
-	}
+	refreshLayout();
 });
 
 pane.on("fold", (ev) => {
