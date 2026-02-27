@@ -18,7 +18,7 @@ const PARAMS = {
 		particleSpeed: 100.0,
 		particleSize: 10.0,
 		fpsLimit: 60,
-		emitterPosition: { x: 0.5, y: 0.5 },
+		emitterPosition: { x: 0, y: 0 },
 		emitterSize: { x: 0, y: 0 },
 		emitterAngle: 0,
 		emitterDirection: { x: 1, y: 0 },
@@ -83,8 +83,8 @@ const fpsLimitBinding = particlesFolder.addBinding(PARAMS.particleSystem, "fpsLi
 
 const emitterFolder = pane.addFolder({ title: "Emitter" });
 const emitterPosBinding = emitterFolder.addBinding(PARAMS.particleSystem, "emitterPosition", {
-	x: { min: 0, max: 1, step: 0.01 },
-	y: { min: 0, max: 1, step: 0.01 },
+	x: { min: -1, max: 1, step: 0.01 },
+	y: { min: -1, max: 1, step: 0.01 },
 	label: "Position"
 });
 const emitterSizeBinding = emitterFolder.addBinding(PARAMS.particleSystem, "emitterSize", {
@@ -178,9 +178,16 @@ particleSizeBinding.on("change", (ev) => {
 fpsLimitBinding.on("change", (ev) => {
 	particleSystem.updateConfig({ fpsLimit: ev.value });
 });
+const convertAndSetEmitterPosition = () => {
+	const val = emitterPosBinding.controller.value.rawValue;
+	const x = (val.x + 1) / 2;
+	const y = (val.y + 1) / 2;
+	particleSystem.updateConfig({ emitterPosition: { x, y } });
+};
 emitterPosBinding.on("change", (ev) => {
-	particleSystem.updateConfig({ emitterPosition: ev.value });
+	convertAndSetEmitterPosition();
 });
+
 emitterSizeBinding.on("change", (ev) => {
 	particleSystem.updateConfig({ emitterSize: ev.value });
 });
@@ -205,6 +212,8 @@ imageBinding.on("change", (ev) => {
 	}
 });
 
+
+
 pane.addBlade({ view: "separator" });
 const exportButton = pane.addButton({ title: "Export JSON" });
 exportButton.on("click", () => {
@@ -221,6 +230,8 @@ const previewContainer = canvas.parentElement;
 
 // Initialize WebGLitter
 const particleSystem = new WebGLitter(canvas, PARAMS.particleSystem);
+
+convertAndSetEmitterPosition();
 
 function updateBrowserZoom() {
 	const dpr = window.devicePixelRatio || 1;
