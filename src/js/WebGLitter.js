@@ -86,12 +86,13 @@ export default class WebGLitter {
 		const gradO = ctxO.createLinearGradient(0, 0, width, 0);
 		if (this.config.opacityGradient && this.config.opacityGradient.length > 0) {
 			const points = [...this.config.opacityGradient].sort((a, b) => a.time - b.time);
-			for (const p of points) gradO.addColorStop(p.time, `rgba(${p.value.r}, ${p.value.g}, ${p.value.b}, 1.0)`);
+			for (const p of points) gradO.addColorStop(p.time, `rgba(255, 255, 255, ${p.value.a})`);
 		} else {
 			gradO.addColorStop(0, "rgba(255, 255, 255, 1)");
 			gradO.addColorStop(1, "rgba(255, 255, 255, 1)");
 		}
 		ctxO.fillStyle = gradO;
+		ctxO.clearRect(0, 0, width, 1);
 		ctxO.fillRect(0, 0, width, 1);
 
 		const dataC = ctxC.getImageData(0, 0, width, 1).data;
@@ -102,7 +103,7 @@ export default class WebGLitter {
 			finalData[i * 4 + 0] = dataC[i * 4 + 0];
 			finalData[i * 4 + 1] = dataC[i * 4 + 1];
 			finalData[i * 4 + 2] = dataC[i * 4 + 2];
-			finalData[i * 4 + 3] = Math.round((dataC[i * 4 + 3] * dataO[i * 4 + 0]) / 255.0);
+			finalData[i * 4 + 3] = Math.round((dataC[i * 4 + 3] * dataO[i * 4 + 3]) / 255.0);
 		}
 
 		if (!this.gradientTexture) this.gradientTexture = gl.createTexture();

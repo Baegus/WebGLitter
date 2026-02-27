@@ -76,9 +76,6 @@ presetBlade.on("change", (ev) => {
 	console.log("Preset changed", ev.value);
 });
 
-const lifetimeFolder = particlesFolder.addFolder({ title: "Lifetime" });
-
-let particleSystem; // Declare early so bindings can use it
 
 // Helper to reduce boilerplate for particle system bindings
 const bindParticle = (folder, key, options, customChange) => {
@@ -93,12 +90,15 @@ const bindParticle = (folder, key, options, customChange) => {
 	});
 	return binding;
 };
+bindParticle(particlesFolder, "fpsLimit", { min: 0, max: 240, step: 1, label: "FPS Limit (0=unlimited)" });
 
+const lifetimeFolder = particlesFolder.addFolder({ title: "Lifetime" });
+
+let particleSystem; // Declare early so bindings can use it
 bindParticle(particlesFolder, "emissionRate", { min: 1, max: 10000, step: 5, label: "Emission Rate" });
 bindParticle(lifetimeFolder, "particleLife", { min: 0.1, max: 10.0, step: 0.1, label: "Lifetime (s)" });
 bindParticle(particlesFolder, "particleSpeed", { min: 10, max: 1000, step: 1, label: "Particle Speed" });
 bindParticle(particlesFolder, "particleSize", { min: 1, max: 100, step: 1, label: "Particle Size" });
-bindParticle(particlesFolder, "fpsLimit", { min: 0, max: 240, step: 1, label: "FPS Limit (0=unlimited)" });
 
 const emitterFolder = pane.addFolder({ title: "Emitter" });
 const emitterPosBinding = bindParticle(emitterFolder, "emitterPosition", {
@@ -161,13 +161,13 @@ const imageBinding = bindParticle(shapeFolder, "particleImage", {
 });
 imageBinding.hidden = PARAMS.particleSystem.particleShape !== "image";
 
-const bindGradient = (folder, key, label, initialPoints, alphaPicker = false) => {
+const bindGradient = (folder, key, label, initialPoints, colorPicker = true, alphaPicker = false) => {
 	const blade = folder.addBlade({
 		view: "gradient",
 		label: label,
-		colorPicker: true,
+		colorPicker,
 		colorPickerProps: { layout: "inline" },
-		alphaPicker: alphaPicker,
+		alphaPicker,
 		timePicker: true,
 		initialPoints: initialPoints,
 	});
@@ -186,8 +186,8 @@ bindGradient(particlesFolder, "colorGradient", "Color Gradient", [
 
 bindGradient(lifetimeFolder, "opacityGradient", "Opacity Over Lifetime", [
 	{ time: 0, value: { r: 255, g: 255, b: 255, a: 1 } },
-	{ time: 1, value: { r: 0, g: 0, b: 0, a: 1 } },
-]);
+	{ time: 1, value: { r: 255, g: 255, b: 255, a: 0 } },
+], false, true);
 
 pane.addBlade({ view: "separator" });
 const exportButton = pane.addButton({ title: "Export JSON" });
