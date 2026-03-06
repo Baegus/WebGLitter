@@ -167,19 +167,19 @@ export default class WebGLitter {
 		this.uniforms = { render: {} };
 
 		this.renderVsSource = `#version 300 es
-		precision lowp float;
+		precision mediump float;
 
 		layout(location = 0) in vec2 a_position;
 		layout(location = 1) in float a_normalizedAge;
 
-		uniform vec2 u_resolution;
+		uniform vec2 u_rcpResolution;
 		uniform float u_size;
 		uniform sampler2D u_gradientTexture;
 
-		out vec4 v_color;
+		out lowp vec4 v_color;
 
 		void main() {
-			vec2 clipSpace = (a_position / u_resolution) * 2.0 - 1.0;
+			vec2 clipSpace = a_position * u_rcpResolution - 1.0;
 			clipSpace.y = -clipSpace.y;
 			
 			gl_Position = vec4(clipSpace, 0.0, 1.0);
@@ -193,7 +193,7 @@ export default class WebGLitter {
 
 		// Set permanent gl state optimizations
 		gl.enable(gl.BLEND);
-		gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+		gl.blendFunc(gl.ONE, gl.ONE); // Pre-multiplied additive: fragment already outputs rgb*a
 	}
 
 	initRenderProgram() {
@@ -231,7 +231,7 @@ export default class WebGLitter {
 		this.renderProgram = this.createProgram(this.renderVsSource, renderFsSource);
 
 		this.uniforms.render = {
-			resolution: gl.getUniformLocation(this.renderProgram, "u_resolution"),
+			rcpResolution: gl.getUniformLocation(this.renderProgram, "u_rcpResolution"),
 			size: gl.getUniformLocation(this.renderProgram, "u_size"),
 			gradientTexture: gl.getUniformLocation(this.renderProgram, "u_gradientTexture"),
 			...(useImage ? { particleTexture: gl.getUniformLocation(this.renderProgram, "u_particleTexture") } : {})
@@ -407,7 +407,7 @@ export default class WebGLitter {
 			gl.clear(gl.COLOR_BUFFER_BIT);
 
 			gl.useProgram(this.renderProgram);
-			gl.uniform2f(this.uniforms.render.resolution, this.canvas.width, this.canvas.height);
+			gl.uniform2f(this.uniforms.render.rcpResolution, 2.0 / this.canvas.width, 2.0 / this.canvas.height);
 			gl.uniform1f(this.uniforms.render.size, this.config.particleSize);
 
 			if (this.gradientTexture) {
