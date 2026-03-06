@@ -28,6 +28,7 @@ export default class WebGLitter {
 			repelParticles: false,
 			repelRadius: 100.0,
 			repelStrength: 500.0,
+			blendMode: "additive",
 			...config
 		};
 
@@ -71,6 +72,9 @@ export default class WebGLitter {
 
 		if (oldShape !== this.config.particleShape) {
 			this.initRenderProgram();
+		}
+		if (newConfig.blendMode !== undefined) {
+			this.applyBlendMode();
 		}
 		if (newConfig.colorGradient !== undefined || newConfig.opacityGradient !== undefined) {
 			this.updateGradientTexture();
@@ -191,9 +195,28 @@ export default class WebGLitter {
 
 		this.initRenderProgram();
 
-		// Set permanent gl state optimizations
+		// Set initial blend state
+		this.applyBlendMode();
+	}
+
+	applyBlendMode() {
+		const gl = this.gl;
 		gl.enable(gl.BLEND);
-		gl.blendFunc(gl.ONE, gl.ONE); // Pre-multiplied additive: fragment already outputs rgb*a
+		switch (this.config.blendMode) {
+			case "normal":
+				gl.blendEquation(gl.FUNC_ADD);
+				gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+				break;
+			case "screen":
+				gl.blendEquation(gl.FUNC_ADD);
+				gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_COLOR);
+				break;
+			case "additive":
+			default:
+				gl.blendEquation(gl.FUNC_ADD);
+				gl.blendFunc(gl.ONE, gl.ONE);
+				break;
+		}
 	}
 
 	initRenderProgram() {

@@ -31,6 +31,7 @@ const PARAMS = {
 		repelParticles: false,
 		repelRadius: 100.0,
 		repelStrength: 500.0,
+		blendMode: "additive",
 	},
 };
 
@@ -95,6 +96,14 @@ const bindParticle = (folder, key, options, customChange) => {
 	return binding;
 };
 bindParticle(particlesFolder, "fpsLimit", { min: 0, max: 240, step: 1, label: "FPS Limit (0=unlimited)" });
+bindParticle(particlesFolder, "blendMode", {
+	options: {
+		Additive: "additive",
+		Normal: "normal",
+		Screen: "screen",
+	},
+	label: "Blend Mode"
+});
 
 const lifetimeFolder = particlesFolder.addFolder({ title: "Lifetime" });
 
