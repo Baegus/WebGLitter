@@ -28,6 +28,7 @@ export default class WebGLitter {
 			repelParticles: false,
 			repelRadius: 100.0,
 			repelStrength: 500.0,
+			gravity: { x: 0, y: 0 },
 			blendMode: "additive",
 			...config
 		};
@@ -376,6 +377,8 @@ export default class WebGLitter {
 			const repel = this.config.repelParticles && this.pointer.active;
 			const rRadius = this.config.repelRadius;
 			const rStrength = this.config.repelStrength;
+			const gravX = this.config.gravity.x;
+			const gravY = this.config.gravity.y;
 
 			// Blisteringly fast typed array JS calculation loop
 			for (let i = 0; i < count; i++) {
@@ -410,6 +413,9 @@ export default class WebGLitter {
 							cpu[i6 + 3] += (dy / dist) * force;
 						}
 					}
+
+					cpu[i6 + 2] += gravX * dt;
+					cpu[i6 + 3] += gravY * dt;
 
 					cpu[i6] += cpu[i6 + 2] * dt;
 					cpu[i6 + 1] += cpu[i6 + 3] * dt;
