@@ -62,7 +62,7 @@ export default class WebGLitter {
 		if (this.config.colorGradient || this.config.opacityGradient) {
 			this.updateGradientTexture();
 		}
-		if (this.config.particleImage) {
+		if (this.config.particleImage || this.config.particleShape === "image") {
 			this.updateParticleImage();
 		}
 
@@ -76,6 +76,9 @@ export default class WebGLitter {
 
 		if (oldShape !== this.config.particleShape) {
 			this.initRenderProgram();
+			if (this.config.particleShape === "image") {
+				this.updateParticleImage();
+			}
 		}
 		if (newConfig.blendMode !== undefined) {
 			this.applyBlendMode();
@@ -146,13 +149,38 @@ export default class WebGLitter {
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 	}
 
+	createFallbackParticleTexture() {
+		// A simple soft circle texture
+		const gl = this.gl;
+		const size = 32;
+		const canvas = document.createElement("canvas");
+		canvas.width = size;
+		canvas.height = size;
+		const ctx = canvas.getContext("2d");
+
+		const cx = size / 2;
+		const r = size / 2;
+		const grad = ctx.createRadialGradient(cx, cx, 0, cx, cx, r);
+		grad.addColorStop(0.0, "rgba(255,255,255,1)");
+		grad.addColorStop(0.5, "rgba(255,255,255,0.8)");
+		grad.addColorStop(1.0, "rgba(255,255,255,0)");
+		ctx.fillStyle = grad;
+		ctx.fillRect(0, 0, size, size);
+
+		if (!this.particleTexture) this.particleTexture = gl.createTexture();
+		gl.bindTexture(gl.TEXTURE_2D, this.particleTexture);
+		gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+	}
+
 	updateParticleImage() {
 		const gl = this.gl;
 		if (!this.config.particleImage) {
-			if (this.particleTexture) {
-				gl.deleteTexture(this.particleTexture);
-				this.particleTexture = null;
-			}
+			this.createFallbackParticleTexture();
 			return;
 		}
 
