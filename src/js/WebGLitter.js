@@ -34,7 +34,10 @@ export default class WebGLitter {
 		};
 
 		this.lastTime = performance.now();
-		
+
+		this.degToRad = Math.PI / 180.0;
+
+
 		this.pointer = { normalizedX: 0.5, normalizedY: 0.5, active: false };
 		
 		this.handlePointerMove = (e) => {
@@ -331,22 +334,18 @@ export default class WebGLitter {
 
 	render(now) {
 		const gl = this.gl;
-		
-		// Calculate delta time
-		let dt = (now - this.lastTime) / 1000.0;
-		
+
 		if (this.config.fpsLimit > 0) {
 			const targetDt = 1.0 / this.config.fpsLimit;
-			if (dt < targetDt) {
+			if ((now - this.lastTime) / 1000.0 < targetDt - 0.001) {
 				this.animationFrameId = requestAnimationFrame(this.render);
 				return;
 			}
-			if (dt > 0.1) dt = 0.1;
-			this.lastTime = now - ((dt % targetDt) * 1000.0);
-		} else {
-			if (dt > 0.1) dt = 0.1;
-			this.lastTime = now;
 		}
+
+		// Use real elapsed time so physics speed is independent of FPS limit / display rate
+		const dt = Math.min((now - this.lastTime) / 1000.0, 0.1);
+		this.lastTime = now;
 
 		const targetParticles = Math.min(this.config.emissionRate * this.config.particleLife, this.config.maxParticles);
 
@@ -367,8 +366,9 @@ export default class WebGLitter {
 			const ey = (this.config.followPointer && this.pointer.active) ? this.pointer.normalizedY * this.canvas.height : this.config.emitterPosition.y * this.canvas.height;
 			const ew = this.config.emitterSize.x * this.canvas.width;
 			const eh = this.config.emitterSize.y * this.canvas.height;
-			const eAngle = this.config.emitterAngle * (Math.PI / 180.0);
-			const eSpread = this.config.emitterSpread * (Math.PI / 180.0);
+			
+			const eAngle = this.config.emitterAngle * this.degToRad;
+			const eSpread = this.config.emitterSpread * this.degToRad;
 			const bSpeed = this.config.particleSpeed;
 			const bLife = this.config.particleLife;
 
