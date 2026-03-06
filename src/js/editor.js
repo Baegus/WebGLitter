@@ -31,6 +31,7 @@ const PARAMS = {
 		repelParticles: false,
 		repelRadius: 100.0,
 		repelStrength: 500.0,
+		gravity: { x: 0, y: 0 },
 		blendMode: "additive",
 	},
 };
@@ -151,6 +152,13 @@ bindParticle(interactionFolder, "followPointer", { label: "Follow Pointer" });
 bindParticle(interactionFolder, "repelParticles", { label: "Repel Particles" });
 bindParticle(interactionFolder, "repelRadius", { min: 10, max: 1000, step: 1, label: "Repel Radius" });
 bindParticle(interactionFolder, "repelStrength", { min: 10, max: 5000, step: 10, label: "Repel Strength" });
+
+const physicsFolder = pane.addFolder({ title: "Physics" });
+bindParticle(physicsFolder, "gravity", {
+	x: { min: -2000, max: 2000, step: 1 },
+	y: { min: -2000, max: 2000, step: 1 },
+	label: "Gravity (px/s²)"
+});
 
 const shapeFolder = pane.addFolder({ title: "Particle Shape" });
 bindParticle(shapeFolder, "particleShape", {
