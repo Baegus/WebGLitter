@@ -27,6 +27,10 @@ const PARAMS = {
 		particleImage: "",
 		colorGradient: null, // Will be managed by the blade
 		opacityGradient: null, // Will be managed by the blade
+		followPointer: false,
+		repelParticles: false,
+		repelRadius: 100.0,
+		repelStrength: 500.0,
 	},
 };
 
@@ -132,6 +136,12 @@ bindParticle(emitterFolder, "emitterDirection", {
 bindParticle(emitterFolder, "emitterSpread", {
 	min: 0, max: 360, step: 1, label: "Spread"
 });
+
+const interactionFolder = pane.addFolder({ title: "Interaction" });
+bindParticle(interactionFolder, "followPointer", { label: "Follow Pointer" });
+bindParticle(interactionFolder, "repelParticles", { label: "Repel Particles" });
+bindParticle(interactionFolder, "repelRadius", { min: 10, max: 1000, step: 1, label: "Repel Radius" });
+bindParticle(interactionFolder, "repelStrength", { min: 10, max: 5000, step: 10, label: "Repel Strength" });
 
 const shapeFolder = pane.addFolder({ title: "Particle Shape" });
 bindParticle(shapeFolder, "particleShape", {

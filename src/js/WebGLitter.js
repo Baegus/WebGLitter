@@ -24,11 +24,33 @@ export default class WebGLitter {
 			particleImage: null,
 			colorGradient: null,
 			opacityGradient: null,
+			followPointer: false,
+			repelParticles: false,
+			repelRadius: 100.0,
+			repelStrength: 500.0,
 			...config
 		};
 
 		this.lastTime = performance.now();
 		
+		this.pointer = { normalizedX: 0.5, normalizedY: 0.5, active: false };
+		
+		this.handlePointerMove = (e) => {
+			const rect = this.canvas.getBoundingClientRect();
+			this.pointer.normalizedX = (e.clientX - rect.left) / rect.width;
+			this.pointer.normalizedY = (e.clientY - rect.top) / rect.height;
+			this.pointer.active = true;
+		};
+		this.handlePointerLeave = () => {
+			this.pointer.active = false;
+		};
+		
+		this.canvas.addEventListener("pointermove", this.handlePointerMove);
+		this.canvas.addEventListener("pointerdown", this.handlePointerMove);
+		this.canvas.addEventListener("pointerleave", this.handlePointerLeave);
+		this.canvas.addEventListener("pointerup", this.handlePointerLeave);
+		this.canvas.addEventListener("pointercancel", this.handlePointerLeave);
+
 		this.initWebGL();
 		this.initParticles();
 
@@ -317,14 +339,20 @@ export default class WebGLitter {
 			// CPU Optimizations: Pre-calc maths to keep loop entirely raw arithmetic
 			const cpu = this.cpuData;
 			const gpu = this.gpuData;
-			const ex = this.config.emitterPosition.x * this.canvas.width;
-			const ey = this.config.emitterPosition.y * this.canvas.height;
+			const ex = (this.config.followPointer && this.pointer.active) ? this.pointer.normalizedX * this.canvas.width : this.config.emitterPosition.x * this.canvas.width;
+			const ey = (this.config.followPointer && this.pointer.active) ? this.pointer.normalizedY * this.canvas.height : this.config.emitterPosition.y * this.canvas.height;
 			const ew = this.config.emitterSize.x * this.canvas.width;
 			const eh = this.config.emitterSize.y * this.canvas.height;
 			const eAngle = this.config.emitterAngle * (Math.PI / 180.0);
 			const eSpread = this.config.emitterSpread * (Math.PI / 180.0);
 			const bSpeed = this.config.particleSpeed;
 			const bLife = this.config.particleLife;
+
+			const px = this.pointer.normalizedX * this.canvas.width;
+			const py = this.pointer.normalizedY * this.canvas.height;
+			const repel = this.config.repelParticles && this.pointer.active;
+			const rRadius = this.config.repelRadius;
+			const rStrength = this.config.repelStrength;
 
 			// Blisteringly fast typed array JS calculation loop
 			for (let i = 0; i < count; i++) {
@@ -348,6 +376,18 @@ export default class WebGLitter {
 					life = bLife + Math.random() * bLife * 0.5;
 					cpu[i6 + 5] = life;
 				} else {
+					if (repel) {
+						let dx = cpu[i6] - px;
+						let dy = cpu[i6 + 1] - py;
+						let distSq = dx * dx + dy * dy;
+						if (distSq < rRadius * rRadius && distSq > 0) {
+							let dist = Math.sqrt(distSq);
+							let force = (1.0 - dist / rRadius) * rStrength * dt;
+							cpu[i6 + 2] += (dx / dist) * force;
+							cpu[i6 + 3] += (dy / dist) * force;
+						}
+					}
+
 					cpu[i6] += cpu[i6 + 2] * dt;
 					cpu[i6 + 1] += cpu[i6 + 3] * dt;
 				}
@@ -391,6 +431,11 @@ export default class WebGLitter {
 
 	destroy() {
 		cancelAnimationFrame(this.animationFrameId);
+		this.canvas.removeEventListener("pointermove", this.handlePointerMove);
+		this.canvas.removeEventListener("pointerdown", this.handlePointerMove);
+		this.canvas.removeEventListener("pointerleave", this.handlePointerLeave);
+		this.canvas.removeEventListener("pointerup", this.handlePointerLeave);
+		this.canvas.removeEventListener("pointercancel", this.handlePointerLeave);
 		const gl = this.gl;
 		gl.deleteProgram(this.renderProgram);
 		gl.deleteBuffer(this.buffer);
