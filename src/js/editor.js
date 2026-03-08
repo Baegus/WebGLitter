@@ -3,7 +3,8 @@ import { Pane } from "tweakpane";
 import { GradientPluginBundle } from "tweakpane-plugin-gradient";
 import * as TweakpaneFileImportPlugin from "tweakpane-plugin-file-import";
 import WebGLitter from "./WebGLitter.js";
-import { exportJSON, exportHTML } from "./modules/exporters";
+import { exportJSON, exportHTML, uiToLibrary, libraryToUI } from "./modules/exporters";
+import { presets } from "./modules/presets";
 
 const debugging = process.env.DEBUG == "true";
 
@@ -26,8 +27,8 @@ const PARAMS = {
 		emitterSpread: 360,
 		particleShape: "softCircle",
 		particleImage: "",
-		colorGradient: null, // Will be managed by the blade
-		opacityGradient: null, // Will be managed by the blade
+		colorGradient: null, // Managed by blade
+		opacityGradient: null, // Managed by blade
 		interactionType: "none",
 		repelRadius: 100.0,
 		repelStrength: 500.0,
@@ -48,6 +49,21 @@ pane.registerPlugin(GradientPluginBundle);
 pane.registerPlugin(TweakpaneFileImportPlugin);
 
 let particleSystem; // Shared system instance
+const blades = {}; // Store blade references
+
+// Mapping helper for single properties
+const mapToLibrary = (key, val) => {
+	if (key === "emitterPosition") {
+		return { x: (val.x + 1) / 2, y: (val.y + 1) / 2 };
+	}
+	if (key === "colorGradient" || key === "opacityGradient") {
+		return val.map(p => ({
+			time: p.time,
+			value: [p.value.r, p.value.g, p.value.b, p.value.a]
+		}));
+	}
+	return val;
+};
 
 // Helper to reduce boilerplate for particle system bindings
 const bindParticle = (folder, key, options, customChange) => {
@@ -57,18 +73,13 @@ const bindParticle = (folder, key, options, customChange) => {
 		if (customChange) {
 			customChange(ev.value, binding);
 		} else {
-			particleSystem.updateConfig({ [key]: ev.value });
+			particleSystem.updateConfig({ [key]: mapToLibrary(key, ev.value) });
 		}
 	});
 	return binding;
 };
 
 const bindGradient = (folder, key, label, initialPoints, colorPicker = true, alphaPicker = false) => {
-	const mapPoints = (points) => points.map(p => ({
-		time: p.time,
-		value: [p.value.r, p.value.g, p.value.b, p.value.a]
-	}));
-
 	const blade = folder.addBlade({
 		view: "gradient",
 		label: label,
@@ -78,13 +89,30 @@ const bindGradient = (folder, key, label, initialPoints, colorPicker = true, alp
 		timePicker: true,
 		initialPoints: initialPoints,
 	});
-	PARAMS.particleSystem[key] = mapPoints(blade.value.points);
+	blades[key] = blade;
+	PARAMS.particleSystem[key] = blade.value.points;
 	blade.on("change", (ev) => {
-		const mapped = mapPoints(ev.value.points);
-		PARAMS.particleSystem[key] = mapped;
-		if (particleSystem) particleSystem.updateConfig({ [key]: mapped });
+		PARAMS.particleSystem[key] = ev.value.points;
+		if (particleSystem) {
+			particleSystem.updateConfig({ [key]: mapToLibrary(key, ev.value.points) });
+		}
 	});
 	return blade;
+};
+
+const refreshPreview = () => {
+	updateCanvas();
+	if (!particleSystem) return;
+	
+	const config = uiToLibrary(PARAMS);
+
+	// Handle particle image if it's a File object from Tweakpane
+	if (PARAMS.particleSystem.particleImage instanceof File) {
+		config.particleImage = URL.createObjectURL(PARAMS.particleSystem.particleImage);
+	}
+
+	particleSystem.updateConfig(config);
+	particleSystem.restart();
 };
 
 const canvasFolder = pane.addFolder({ title: "Canvas and Preview" });
@@ -119,40 +147,73 @@ bindParticle(canvasFolder, "fpsLimit", { min: 0, max: 240, step: 1, label: "FPS 
 
 
 canvasFolder.addButton({ title: "Refresh Preview" }).on("click", () => {
-	updateCanvas();
-	if (!particleSystem) return;
-	const config = { ...PARAMS.particleSystem };
-
-	// Convert UI emitter position (-1..1) to system position (0..1)
-	config.emitterPosition = {
-		x: (config.emitterPosition.x + 1) / 2,
-		y: (config.emitterPosition.y + 1) / 2
-	};
-
-	// Handle particle image if it's a File object from Tweakpane
-	if (config.particleImage instanceof File) {
-		config.particleImage = URL.createObjectURL(config.particleImage);
-	}
-
-	particleSystem.updateConfig(config);
-	particleSystem.restart();
+	refreshPreview();
 });
 
 const particlesFolder = pane.addFolder({ title: "Particles" });
 
-const presets = {
-	"Default": { setting1: "value1" },
-	"Fire": { setting1: "value1" },
-	"Rain": { setting1: "value1" },
-};
 const presetBlade = particlesFolder.addBlade({
 	view: "list",
 	label: "Preset",
 	options: presets,
 	value: presets.Default,
 });
+
 presetBlade.on("change", (ev) => {
-	console.log("Preset changed", ev.value);
+	const preset = ev.value;
+	if (!preset) return;
+
+	// Convert Library format (Preset) to UI format (Editor)
+	const uiData = libraryToUI(preset);
+
+	// Surgically update PARAMS while maintaining references
+	Object.keys(uiData).forEach(key => {
+		if (key !== "colorGradient" && key !== "opacityGradient") {
+			if (typeof uiData[key] === "object" && uiData[key] !== null && PARAMS.particleSystem[key]) {
+				Object.assign(PARAMS.particleSystem[key], uiData[key]);
+			} else {
+				PARAMS.particleSystem[key] = uiData[key];
+			}
+		}
+	});
+
+	// Load gradients (need manual blade update)
+	const updateGradientBlade = (key, uiPoints) => {
+		const blade = blades[key];
+		if (!blade || !uiPoints) return;
+
+		const gradient = blade.value;
+		if (gradient && typeof gradient.clone === "function") {
+			const newGradient = gradient.clone();
+			newGradient.points = JSON.parse(JSON.stringify(uiPoints));
+			blade.value = newGradient;
+		} else {
+			blade.value = { points: JSON.parse(JSON.stringify(uiPoints)) };
+		}
+		PARAMS.particleSystem[key] = blade.value.points;
+	};
+
+	updateGradientBlade("colorGradient", uiData.colorGradient);
+	updateGradientBlade("opacityGradient", uiData.opacityGradient);
+
+	// Sync direction and angle
+	if (preset.emitterDirection) {
+		const angle = Math.atan2(preset.emitterDirection.y, preset.emitterDirection.x) * (180 / Math.PI);
+		PARAMS.particleSystem.emitterAngle = angle;
+	} else if (preset.emitterAngle !== undefined) {
+		const rad = preset.emitterAngle * (Math.PI / 180);
+		PARAMS.particleSystem.emitterDirection.x = Math.cos(rad);
+		PARAMS.particleSystem.emitterDirection.y = Math.sin(rad);
+	}
+
+	pane.refresh();
+	
+	// Update manual visibility logic
+	updateSwayVisibility(PARAMS.particleSystem.swayType);
+	updateInteractionVisibility(PARAMS.particleSystem.interactionType);
+	imageBinding.hidden = PARAMS.particleSystem.particleShape !== "image";
+
+	refreshPreview();
 });
 
 bindParticle(particlesFolder, "blendMode", {
@@ -251,9 +312,9 @@ const emitterPosBinding = bindParticle(emitterFolder, "emitterPosition", {
 	y: { min: -1, max: 1, step: 0.01 },
 	label: "Position"
 }, (val) => {
-	const x = (val.x + 1) / 2;
-	const y = (val.y + 1) / 2;
-	particleSystem.updateConfig({ emitterPosition: { x, y } });
+	particleSystem.updateConfig({ 
+		emitterPosition: mapToLibrary("emitterPosition", val) 
+	});
 });
 
 bindParticle(emitterFolder, "emitterSize", {
@@ -326,16 +387,7 @@ const canvas = getID("preview-canvas");
 const previewContainer = canvas.parentElement;
 
 // Initialize WebGLitter
-particleSystem = new WebGLitter(canvas, PARAMS.particleSystem);
-
-// Trigger initial position conversion
-const initialPos = emitterPosBinding.controller.value.rawValue;
-particleSystem.updateConfig({ 
-	emitterPosition: { 
-		x: (initialPos.x + 1) / 2, 
-		y: (initialPos.y + 1) / 2 
-	} 
-});
+particleSystem = new WebGLitter(canvas, uiToLibrary(PARAMS));
 
 function updateBrowserZoom() {
 	const dpr = window.devicePixelRatio || 1;

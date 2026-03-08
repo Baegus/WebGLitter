@@ -1,30 +1,52 @@
 import { triggerDownload } from "./utils";
 
-export const getProcessedConfig = (PARAMS) => {
-	// Deep clone the config
-	const config = JSON.parse(JSON.stringify(PARAMS.particleSystem, (key, value) => {
-		// Handle File objects which JSON.stringify would turn into {}
+const mapColorToLibrary = (points) => points.map(p => ({
+	time: p.time,
+	value: Array.isArray(p.value) ? [...p.value] : [p.value.r, p.value.g, p.value.b, p.value.a]
+}));
+
+const mapColorToUI = (points) => points.map(p => ({
+	time: p.time,
+	value: Array.isArray(p.value) ? { r: p.value[0], g: p.value[1], b: p.value[2], a: p.value[3] } : { ...p.value }
+}));
+
+export const uiToLibrary = (uiParams) => {
+	const config = JSON.parse(JSON.stringify(uiParams.particleSystem, (key, value) => {
 		if (value instanceof File) return "[File Object]";
 		return value;
 	}));
 
-	// Convert UI emitter position (-1..1) to system position (0..1)
-	config.emitterPosition = {
-		x: (PARAMS.particleSystem.emitterPosition.x + 1) / 2,
-		y: (PARAMS.particleSystem.emitterPosition.y + 1) / 2
-	};
-
-	// If it was a File object, it's currently unusable in exported JSON/HTML 
-	// without base64 conversion. For now, we follow the "figure it out later" path.
-	if (PARAMS.particleSystem.particleImage instanceof File) {
-		config.particleImage = null; // Placeholder
+	// Position: UI (-1..1) -> Library (0..1)
+	if (config.emitterPosition) {
+		config.emitterPosition.x = (config.emitterPosition.x + 1) / 2;
+		config.emitterPosition.y = (config.emitterPosition.y + 1) / 2;
 	}
+
+	// Gradients: UI Points -> Array Colors
+	if (config.colorGradient) config.colorGradient = mapColorToLibrary(config.colorGradient);
+	if (config.opacityGradient) config.opacityGradient = mapColorToLibrary(config.opacityGradient);
 
 	return config;
 }
 
+export const libraryToUI = (libConfig) => {
+	const params = JSON.parse(JSON.stringify(libConfig));
+
+	// Position: Library (0..1) -> UI (-1..1)
+	if (params.emitterPosition) {
+		params.emitterPosition.x = (params.emitterPosition.x * 2) - 1;
+		params.emitterPosition.y = (params.emitterPosition.y * 2) - 1;
+	}
+
+	// Gradients: Array Colors -> UI Points
+	if (params.colorGradient) params.colorGradient = mapColorToUI(params.colorGradient);
+	if (params.opacityGradient) params.opacityGradient = mapColorToUI(params.opacityGradient);
+
+	return params;
+}
+
 export const exportHTML = (PARAMS) => {
-	const config = getProcessedConfig(PARAMS);
+	const config = uiToLibrary(PARAMS);
 	const canvasSize = PARAMS.canvas.size;
 	const bgColor = PARAMS.canvas.backgroundColor;
 
@@ -73,7 +95,7 @@ const particles = new WebGLitter(canvas, config);
 export const exportJSON = (PARAMS) => {
 	const data = {
 		canvas: PARAMS.canvas,
-		particleSystem: getProcessedConfig(PARAMS),
+		particleSystem: uiToLibrary(PARAMS),
 	};
 	const json = JSON.stringify(data, null, "\t");
 	triggerDownload("webglitter-config.json", json, "application/json");
