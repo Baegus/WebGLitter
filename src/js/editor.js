@@ -385,7 +385,7 @@ updateCanvas();
 
 // Resizable Controls Panel
 const controlsPanel = getID("controls");
-const resizeHandle = controlsPanel.querySelector(".resize-handle");
+const resizeHandle = document.querySelector(".resize-handle");
 const toggleControlsButton = document.querySelector(".toggle-controls");
 
 let panelIsResizing = false;
