@@ -15,8 +15,7 @@ export default class WebGLitter {
 			particleLife: 2.0, // seconds
 			particleSpeed: 100.0,
 			particleSize: 10.0,
-			particleWidth: 100,
-			particleHeight: 100,
+			particleDimensions: { x: 100, y: 100 },
 			fpsLimit: 60,
 			emitterPosition: { x: 0.5, y: 0.5 },
 			emitterSize: { x: 0, y: 0 },
@@ -26,8 +25,7 @@ export default class WebGLitter {
 			particleImage: null,
 			colorGradient: null,
 			opacityGradient: null,
-			followPointer: false,
-			repelParticles: false,
+			interactionType: "none",
 			repelRadius: 100.0,
 			repelStrength: 500.0,
 			gravity: { x: 0, y: 0 },
@@ -406,8 +404,9 @@ export default class WebGLitter {
 			// CPU Optimizations: Pre-calc maths to keep loop entirely raw arithmetic
 			const cpu = this.cpuData;
 			const gpu = this.gpuData;
-			const ex = (this.config.followPointer && this.pointer.active) ? this.pointer.normalizedX * this.canvas.width : this.config.emitterPosition.x * this.canvas.width;
-			const ey = (this.config.followPointer && this.pointer.active) ? this.pointer.normalizedY * this.canvas.height : this.config.emitterPosition.y * this.canvas.height;
+			const follow = this.config.interactionType === "follow" && this.pointer.active;
+			const ex = follow ? this.pointer.normalizedX * this.canvas.width : this.config.emitterPosition.x * this.canvas.width;
+			const ey = follow ? this.pointer.normalizedY * this.canvas.height : this.config.emitterPosition.y * this.canvas.height;
 			const ew = this.config.emitterSize.x * this.canvas.width;
 			const eh = this.config.emitterSize.y * this.canvas.height;
 			
@@ -418,7 +417,7 @@ export default class WebGLitter {
 
 			const px = this.pointer.normalizedX * this.canvas.width;
 			const py = this.pointer.normalizedY * this.canvas.height;
-			const repel = this.config.repelParticles && this.pointer.active;
+			const repel = this.config.interactionType === "repel" && this.pointer.active;
 			const rRadius = this.config.repelRadius;
 			const rStrength = this.config.repelStrength;
 			const gravX = this.config.gravity.x;
@@ -479,8 +478,8 @@ export default class WebGLitter {
 			gl.clearColor(0, 0, 0, 0);
 			gl.clear(gl.COLOR_BUFFER_BIT);
 
-			const actualW = this.config.particleWidth * (this.config.particleSize / 100.0);
-			const actualH = this.config.particleHeight * (this.config.particleSize / 100.0);
+			const actualW = this.config.particleDimensions.x * (this.config.particleSize / 100.0);
+			const actualH = this.config.particleDimensions.y * (this.config.particleSize / 100.0);
 			const maxDim = Math.max(actualW, actualH, 0.001);
 
 			gl.useProgram(this.renderProgram);

@@ -8,8 +8,7 @@ const debugging = process.env.DEBUG == "true";
 
 const PARAMS = {
 	canvas: {
-		width: 1280,
-		height: 720,
+		size: { x: 1280, y: 720 },
 		backgroundColor: "#000000ff",
 	},
 	particleSystem: {
@@ -17,8 +16,7 @@ const PARAMS = {
 		particleLife: 2.0,
 		particleSpeed: 100.0,
 		particleSize: 10.0,
-		particleWidth: 100,
-		particleHeight: 100,
+		particleDimensions: { x: 100, y: 100 },
 		fpsLimit: 60,
 		emitterPosition: { x: 0, y: 0 },
 		emitterSize: { x: 0, y: 0 },
@@ -29,8 +27,7 @@ const PARAMS = {
 		particleImage: "",
 		colorGradient: null, // Will be managed by the blade
 		opacityGradient: null, // Will be managed by the blade
-		followPointer: false,
-		repelParticles: false,
+		interactionType: "none",
 		repelRadius: 100.0,
 		repelStrength: 500.0,
 		gravity: { x: 0, y: 0 },
@@ -47,11 +44,18 @@ pane.registerPlugin(GradientPluginBundle);
 pane.registerPlugin(TweakpaneFileImportPlugin);
 
 const canvasFolder = pane.addFolder({ title: "Canvas and Preview" });
-const bindCanvas = (key, options) => canvasFolder.addBinding(PARAMS.canvas, key, options).on("change", () => updateCanvas());
 
-bindCanvas("width", { min: 100, max: 2000, step: 1 });
-bindCanvas("height", { min: 100, max: 2000, step: 1 });
-bindCanvas("backgroundColor", { view: "color", alpha: true });
+canvasFolder.addBinding(PARAMS.canvas, "size", {
+	x: { min: 100, max: 2000, step: 1 },
+	y: { min: 100, max: 2000, step: 1 },
+	label: "Canvas Size"
+}).on("change", () => updateCanvas());
+
+canvasFolder.addBinding(PARAMS.canvas, "backgroundColor", {
+	view: "color",
+	label: "BG Color",
+	alpha: true
+}).on("change", () => updateCanvas());
 
 // Zoom & Pan State (not exported)
 const viewState = {
@@ -98,7 +102,7 @@ const bindParticle = (folder, key, options, customChange) => {
 	});
 	return binding;
 };
-bindParticle(particlesFolder, "fpsLimit", { min: 0, max: 240, step: 1, label: "FPS Limit (0=unlimited)" });
+bindParticle(particlesFolder, "fpsLimit", { min: 0, max: 240, step: 1, label: "FPS Limit (0=no limit)" });
 bindParticle(particlesFolder, "blendMode", {
 	options: {
 		Additive: "additive",
@@ -113,7 +117,7 @@ const lifetimeFolder = particlesFolder.addFolder({ title: "Lifetime" });
 let particleSystem; // Declare early so bindings can use it
 bindParticle(particlesFolder, "emissionRate", { min: 1, max: 10000, step: 5, label: "Emission Rate" });
 bindParticle(lifetimeFolder, "particleLife", { min: 0.1, max: 10.0, step: 0.1, label: "Lifetime (s)" });
-bindParticle(particlesFolder, "particleSpeed", { min: 10, max: 1000, step: 1, label: "Particle Speed" });
+bindParticle(particlesFolder, "particleSpeed", { min: 0, max: 1000, step: 1, label: "Particle Speed" });
 bindParticle(particlesFolder, "particleSize", { min: 1, max: 100, step: 1, label: "Particle Size" });
 
 const emitterFolder = pane.addFolder({ title: "Emitter" });
@@ -150,10 +154,26 @@ bindParticle(emitterFolder, "emitterSpread", {
 });
 
 const interactionFolder = pane.addFolder({ title: "Interaction" });
-bindParticle(interactionFolder, "followPointer", { label: "Follow Pointer" });
-bindParticle(interactionFolder, "repelParticles", { label: "Repel Particles" });
-bindParticle(interactionFolder, "repelRadius", { min: 10, max: 1000, step: 1, label: "Repel Radius" });
-bindParticle(interactionFolder, "repelStrength", { min: 10, max: 5000, step: 10, label: "Repel Strength" });
+const interactionTypeBinding = bindParticle(interactionFolder, "interactionType", {
+	options: {
+		"None": "none",
+		"Follow Pointer": "follow",
+		"Repel Pointer": "repel",
+	},
+	label: "Type"
+});
+
+const repelRadiusBinding = bindParticle(interactionFolder, "repelRadius", { min: 10, max: 1000, step: 1, label: "Repel Radius" });
+const repelStrengthBinding = bindParticle(interactionFolder, "repelStrength", { min: 10, max: 5000, step: 10, label: "Repel Strength" });
+
+const updateInteractionVisibility = (val) => {
+	const isRepel = val === "repel";
+	repelRadiusBinding.hidden = !isRepel;
+	repelStrengthBinding.hidden = !isRepel;
+};
+
+interactionTypeBinding.on("change", (ev) => updateInteractionVisibility(ev.value));
+updateInteractionVisibility(PARAMS.particleSystem.interactionType);
 
 const physicsFolder = pane.addFolder({ title: "Physics" });
 bindParticle(physicsFolder, "gravity", {
@@ -176,8 +196,11 @@ bindParticle(shapeFolder, "particleShape", {
 	imageBinding.hidden = val !== "image";
 });
 
-bindParticle(shapeFolder, "particleWidth", { min: 1, max: 1000, step: 1, label: "Width" });
-bindParticle(shapeFolder, "particleHeight", { min: 1, max: 1000, step: 1, label: "Height" });
+bindParticle(shapeFolder, "particleDimensions", {
+	x: { min: 1, max: 1000, step: 1 },
+	y: { min: 1, max: 1000, step: 1 },
+	label: "Dimensions (W/H)"
+});
 
 const imageBinding = bindParticle(shapeFolder, "particleImage", {
 	view: "file-input",
@@ -212,12 +235,12 @@ const bindGradient = (folder, key, label, initialPoints, colorPicker = true, alp
 	return blade;
 };
 
-bindGradient(particlesFolder, "colorGradient", "Color Gradient", [
+bindGradient(particlesFolder, "colorGradient", "Color", [
 	{ time: 0, value: { r: 255, g: 0, b: 0, a: 1 } },
 	{ time: 1, value: { r: 0, g: 0, b: 255, a: 1 } },
 ]);
 
-bindGradient(lifetimeFolder, "opacityGradient", "Opacity Over Lifetime", [
+bindGradient(lifetimeFolder, "opacityGradient", "Fade", [
 	{ time: 0, value: { r: 255, g: 255, b: 255, a: 1 } },
 	{ time: 1, value: { r: 255, g: 255, b: 255, a: 0 } },
 ], false, true);
@@ -257,8 +280,8 @@ function updateCanvasTransform() {
 }
 
 function updateCanvas() {
-	canvas.width = PARAMS.canvas.width;
-	canvas.height = PARAMS.canvas.height;
+	canvas.width = PARAMS.canvas.size.x;
+	canvas.height = PARAMS.canvas.size.y;
 	canvas.style.backgroundColor = PARAMS.canvas.backgroundColor;
 	
 	if (particleSystem) {
@@ -277,8 +300,8 @@ function fitToViewport() {
 	const availableWidth = (previewContainer.clientWidth * dpr) - padding;
 	const availableHeight = (previewContainer.clientHeight * dpr) - padding;
 	
-	const scaleX = availableWidth / PARAMS.canvas.width;
-	const scaleY = availableHeight / PARAMS.canvas.height;
+	const scaleX = availableWidth / PARAMS.canvas.size.x;
+	const scaleY = availableHeight / PARAMS.canvas.size.y;
 	
 	viewState.zoom = Math.min(scaleX, scaleY, 1);
 	viewState.offset = { x: 0, y: 0 };
