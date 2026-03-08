@@ -17,13 +17,15 @@ const PARAMS = {
 		particleLife: 2.0,
 		particleSpeed: 100.0,
 		particleSize: 10.0,
+		particleWidth: 100,
+		particleHeight: 100,
 		fpsLimit: 60,
 		emitterPosition: { x: 0, y: 0 },
 		emitterSize: { x: 0, y: 0 },
 		emitterAngle: 0,
 		emitterDirection: { x: 1, y: 0 },
 		emitterSpread: 360,
-		particleShape: "circle",
+		particleShape: "softCircle",
 		particleImage: "",
 		colorGradient: null, // Will be managed by the blade
 		opacityGradient: null, // Will be managed by the blade
@@ -163,8 +165,9 @@ bindParticle(physicsFolder, "gravity", {
 const shapeFolder = pane.addFolder({ title: "Particle Shape" });
 bindParticle(shapeFolder, "particleShape", {
 	options: {
+		"Circle (soft)": "softCircle",
 		Circle: "circle",
-		Square: "square",
+		Rectangle: "rectangle",
 		Image: "image",
 	},
 	label: "Shape"
@@ -172,6 +175,9 @@ bindParticle(shapeFolder, "particleShape", {
 	particleSystem.updateConfig({ particleShape: val });
 	imageBinding.hidden = val !== "image";
 });
+
+bindParticle(shapeFolder, "particleWidth", { min: 1, max: 1000, step: 1, label: "Width" });
+bindParticle(shapeFolder, "particleHeight", { min: 1, max: 1000, step: 1, label: "Height" });
 
 const imageBinding = bindParticle(shapeFolder, "particleImage", {
 	view: "file-input",

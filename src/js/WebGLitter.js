@@ -15,12 +15,14 @@ export default class WebGLitter {
 			particleLife: 2.0, // seconds
 			particleSpeed: 100.0,
 			particleSize: 10.0,
+			particleWidth: 100,
+			particleHeight: 100,
 			fpsLimit: 60,
 			emitterPosition: { x: 0.5, y: 0.5 },
 			emitterSize: { x: 0, y: 0 },
 			emitterAngle: 0,
 			emitterSpread: 360,
-			particleShape: "circle",
+			particleShape: "softCircle",
 			particleImage: null,
 			colorGradient: null,
 			opacityGradient: null,
@@ -255,8 +257,10 @@ export default class WebGLitter {
 		const gl = this.gl;
 		if (this.renderProgram) gl.deleteProgram(this.renderProgram);
 
-		const useCircle = this.config.particleShape === "circle";
-		const useImage = this.config.particleShape === "image";
+		const shape = this.config.particleShape;
+		const useCircle = shape === "circle";
+		const useSoftCircle = shape === "softCircle";
+		const useImage = shape === "image";
 
 		const renderFsSource = `#version 300 es
 		precision lowp float;
@@ -264,20 +268,31 @@ export default class WebGLitter {
 		in vec4 v_color;
 		out vec4 outColor;
 
-		${useImage ? 'uniform sampler2D u_particleTexture;' : ''}
+		uniform vec2 u_shapeScale;
+		${useImage ? "uniform sampler2D u_particleTexture;" : ""}
 
 		void main() {
-			${useCircle ? `
-			vec2 coord = gl_PointCoord - vec2(0.5);
-			if (dot(coord, coord) > 0.25) discard;
-			` : ''}
+			vec2 coord = (gl_PointCoord - 0.5) / u_shapeScale;
+			if (abs(coord.x) > 0.5 || abs(coord.y) > 0.5) discard;
 			
 			vec4 color = v_color;
+
+			${useCircle ? `
+			if (dot(coord, coord) > 0.25) discard;
+			` : ""}
+
+			${useSoftCircle ? `
+			float dist = length(coord);
+			float alpha = clamp(1.0 - dist * 2.0, 0.0, 1.0);
+			alpha = alpha * alpha * (3.0 - 2.0 * alpha);
+			color.a *= alpha;
+			if (color.a <= 0.0) discard;
+			` : ""}
 			
 			${useImage ? `
-			vec2 texCoord = vec2(gl_PointCoord.x, 1.0 - gl_PointCoord.y);
+			vec2 texCoord = vec2(coord.x + 0.5, 1.0 - (coord.y + 0.5));
 			color *= texture(u_particleTexture, texCoord);
-			` : ''}
+			` : ""}
 			
 			outColor = vec4(color.rgb * color.a, color.a);
 		}
@@ -288,6 +303,7 @@ export default class WebGLitter {
 		this.uniforms.render = {
 			rcpResolution: gl.getUniformLocation(this.renderProgram, "u_rcpResolution"),
 			size: gl.getUniformLocation(this.renderProgram, "u_size"),
+			shapeScale: gl.getUniformLocation(this.renderProgram, "u_shapeScale"),
 			gradientTexture: gl.getUniformLocation(this.renderProgram, "u_gradientTexture"),
 			...(useImage ? { particleTexture: gl.getUniformLocation(this.renderProgram, "u_particleTexture") } : {})
 		};
@@ -463,9 +479,14 @@ export default class WebGLitter {
 			gl.clearColor(0, 0, 0, 0);
 			gl.clear(gl.COLOR_BUFFER_BIT);
 
+			const actualW = this.config.particleWidth * (this.config.particleSize / 100.0);
+			const actualH = this.config.particleHeight * (this.config.particleSize / 100.0);
+			const maxDim = Math.max(actualW, actualH, 0.001);
+
 			gl.useProgram(this.renderProgram);
 			gl.uniform2f(this.uniforms.render.rcpResolution, 2.0 / this.canvas.width, 2.0 / this.canvas.height);
-			gl.uniform1f(this.uniforms.render.size, this.config.particleSize);
+			gl.uniform1f(this.uniforms.render.size, maxDim);
+			gl.uniform2f(this.uniforms.render.shapeScale, actualW / maxDim, actualH / maxDim);
 
 			if (this.gradientTexture) {
 				gl.activeTexture(gl.TEXTURE0);
