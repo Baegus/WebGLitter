@@ -1,3 +1,5 @@
+import { DEFAULT_CONFIG } from "./modules/presets.js";
+
 const debugging = process.env.DEBUG == "true";
 
 class WebGLitter {
@@ -10,29 +12,7 @@ class WebGLitter {
 		}
 
 		this.config = {
-			maxParticles: 100000,
-			emissionRate: 5000, // particles per second
-			particleLife: 2.0, // seconds
-			particleSpeed: 100.0,
-			particleSize: 10.0,
-			particleDimensions: { x: 100, y: 100 },
-			fpsLimit: 60,
-			emitterPosition: { x: 0.5, y: 0.5 },
-			emitterSize: { x: 0, y: 0 },
-			emitterAngle: 0,
-			emitterSpread: 360,
-			particleShape: "softCircle",
-			particleImage: null,
-			colorGradient: null,
-			opacityGradient: null,
-			interactionType: "none",
-			repelRadius: 100.0,
-			repelStrength: 500.0,
-			gravity: { x: 0, y: 0 },
-			blendMode: "additive",
-			swayType: "none",
-			swayAmount: 0,
-			swayFrequency: 1.0,
+			...DEFAULT_CONFIG,
 			...config
 		};
 

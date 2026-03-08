@@ -4,7 +4,7 @@ import { GradientPluginBundle } from "tweakpane-plugin-gradient";
 import * as TweakpaneFileImportPlugin from "tweakpane-plugin-file-import";
 import WebGLitter from "./WebGLitter.js";
 import { exportJSON, exportHTML, uiToLibrary, libraryToUI } from "./modules/exporters";
-import { presets } from "./modules/presets";
+import { presets, DEFAULT_CONFIG } from "./modules/presets";
 
 const debugging = process.env.DEBUG == "true";
 
@@ -14,31 +14,36 @@ const PARAMS = {
 		backgroundColor: "#000000ff",
 	},
 	particleSystem: {
-		emissionRate: 5000,
-		particleLife: 2.0,
-		particleSpeed: 100.0,
-		particleSize: 10.0,
-		particleDimensions: { x: 100, y: 100 },
-		fpsLimit: 60,
-		emitterPosition: { x: 0, y: 0 },
-		emitterSize: { x: 0, y: 0 },
-		emitterAngle: 0,
-		emitterDirection: { x: 1, y: 0 },
-		emitterSpread: 360,
-		particleShape: "softCircle",
-		particleImage: "",
-		colorGradient: null, // Managed by blade
-		opacityGradient: null, // Managed by blade
-		interactionType: "none",
-		repelRadius: 100.0,
-		repelStrength: 500.0,
-		gravity: { x: 0, y: 0 },
-		blendMode: "additive",
-		swayType: "none",
-		swayAmount: 20,
-		swayFrequency: 2.0,
+		emissionRate: DEFAULT_CONFIG.emissionRate,
+		particleLife: DEFAULT_CONFIG.particleLife,
+		particleSpeed: DEFAULT_CONFIG.particleSpeed,
+		particleSize: DEFAULT_CONFIG.particleSize,
+		particleDimensions: { ...DEFAULT_CONFIG.particleDimensions },
+		fpsLimit: DEFAULT_CONFIG.fpsLimit || 60,
+		emitterPosition: { x: (DEFAULT_CONFIG.emitterPosition.x * 2) - 1, y: (DEFAULT_CONFIG.emitterPosition.y * 2) - 1 },
+		emitterSize: { ...DEFAULT_CONFIG.emitterSize },
+		emitterAngle: DEFAULT_CONFIG.emitterAngle,
+		emitterDirection: { x: 1, y: 0 }, // Will be updated by Sync logic below
+		emitterSpread: DEFAULT_CONFIG.emitterSpread,
+		particleShape: DEFAULT_CONFIG.particleShape,
+		particleImage: DEFAULT_CONFIG.particleImage || "",
+		colorGradient: null,
+		opacityGradient: null,
+		interactionType: DEFAULT_CONFIG.interactionType,
+		repelRadius: DEFAULT_CONFIG.repelRadius,
+		repelStrength: DEFAULT_CONFIG.repelStrength,
+		gravity: { ...DEFAULT_CONFIG.gravity },
+		blendMode: DEFAULT_CONFIG.blendMode,
+		swayType: DEFAULT_CONFIG.swayType,
+		swayAmount: DEFAULT_CONFIG.swayAmount,
+		swayFrequency: DEFAULT_CONFIG.swayFrequency,
 	},
 };
+
+// Sync direction and angle initially
+const initialRad = (PARAMS.particleSystem.emitterAngle || 0) * (Math.PI / 180);
+PARAMS.particleSystem.emitterDirection.x = Math.cos(initialRad);
+PARAMS.particleSystem.emitterDirection.y = Math.sin(initialRad);
 
 const pane = new Pane({
 	container: getID("controls"),
@@ -46,7 +51,7 @@ const pane = new Pane({
 });
 
 pane.registerPlugin(GradientPluginBundle);
-pane.registerPlugin(TweakpaneFileImportPlugin);
+pane.registerPlugin(TweakpaneFileImportPlugin.default || TweakpaneFileImportPlugin);
 
 let particleSystem; // Shared system instance
 const blades = {}; // Store blade references
@@ -163,19 +168,31 @@ presetBlade.on("change", (ev) => {
 	const preset = ev.value;
 	if (!preset) return;
 
+	// Reset to defaults first to ensure properties not in the preset are cleared
+	const defaultsUI = libraryToUI(DEFAULT_CONFIG);
+	const applyData = (data) => {
+		Object.keys(data).forEach(key => {
+			if (key !== "colorGradient" && key !== "opacityGradient") {
+				if (typeof data[key] === "object" && data[key] !== null && PARAMS.particleSystem[key]) {
+					Object.assign(PARAMS.particleSystem[key], data[key]);
+				} else {
+					PARAMS.particleSystem[key] = data[key];
+				}
+			}
+		});
+	};
+
+	applyData(defaultsUI);
+	// Reset emitterDirection manually since it's a UI-only derived property
+	const radDefault = (DEFAULT_CONFIG.emitterAngle || 0) * (Math.PI / 180);
+	PARAMS.particleSystem.emitterDirection.x = Math.cos(radDefault);
+	PARAMS.particleSystem.emitterDirection.y = Math.sin(radDefault);
+
 	// Convert Library format (Preset) to UI format (Editor)
 	const uiData = libraryToUI(preset);
 
-	// Surgically update PARAMS while maintaining references
-	Object.keys(uiData).forEach(key => {
-		if (key !== "colorGradient" && key !== "opacityGradient") {
-			if (typeof uiData[key] === "object" && uiData[key] !== null && PARAMS.particleSystem[key]) {
-				Object.assign(PARAMS.particleSystem[key], uiData[key]);
-			} else {
-				PARAMS.particleSystem[key] = uiData[key];
-			}
-		}
-	});
+	// Apply preset data
+	applyData(uiData);
 
 	// Load gradients (need manual blade update)
 	const updateGradientBlade = (key, uiPoints) => {

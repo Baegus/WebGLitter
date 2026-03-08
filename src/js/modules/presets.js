@@ -1,30 +1,37 @@
+export const DEFAULT_CONFIG = {
+	maxParticles: 100000,
+	emissionRate: 5000,
+	particleLife: 2.0,
+	particleSpeed: 100.0,
+	particleSize: 10.0,
+	particleDimensions: { x: 100, y: 100 },
+	fpsLimit: 60,
+	emitterPosition: { x: 0.5, y: 0.5 },
+	emitterSize: { x: 0, y: 0 },
+	emitterAngle: 0,
+	emitterSpread: 360,
+	particleShape: "softCircle",
+	particleImage: "",
+	interactionType: "none",
+	repelRadius: 100.0,
+	repelStrength: 500.0,
+	gravity: { x: 0, y: 0 },
+	blendMode: "additive",
+	swayType: "none",
+	swayAmount: 20,
+	swayFrequency: 2.0,
+	colorGradient: [
+		{ time: 0, value: [255, 0, 0, 1] },
+		{ time: 1, value: [0, 0, 255, 1] }
+	],
+	opacityGradient: [
+		{ time: 0, value: [255, 255, 255, 1] },
+		{ time: 1, value: [255, 255, 255, 0] }
+	],
+};
+
 export const presets = {
-	"Default": {
-		emissionRate: 5000,
-		particleLife: 2.0,
-		particleSpeed: 100.0,
-		particleSize: 10.0,
-		particleDimensions: { x: 100, y: 100 },
-		emitterPosition: { x: 0.5, y: 0.5 },
-		emitterSize: { x: 0, y: 0 },
-		emitterAngle: 0,
-		emitterSpread: 360,
-		particleShape: "softCircle",
-		interactionType: "none",
-		gravity: { x: 0, y: 0 },
-		blendMode: "additive",
-		swayType: "none",
-		swayAmount: 20,
-		swayFrequency: 2.0,
-		colorGradient: [
-			{ time: 0, value: [255, 0, 0, 1] },
-			{ time: 1, value: [0, 0, 255, 1] }
-		],
-		opacityGradient: [
-			{ time: 0, value: [255, 255, 255, 1] },
-			{ time: 1, value: [255, 255, 255, 0] }
-		],
-	},
+	"Default": DEFAULT_CONFIG,
 	"Fire": {
 		"emissionRate": 845,
 		"particleLife": 1.4,
@@ -106,12 +113,6 @@ export const presets = {
 			}
 		],
 		"interactionType": "follow",
-		"repelRadius": 100,
-		"repelStrength": 500,
-		"gravity": {
-			"x": 0,
-			"y": 0
-		},
 		"blendMode": "additive",
 		"swayType": "circular",
 		"swayAmount": 15,
