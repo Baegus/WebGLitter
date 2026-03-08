@@ -158,7 +158,7 @@ bindParticle(shapeFolder, "particleDimensions", {
 const imageBinding = bindParticle(shapeFolder, "particleImage", {
 	view: "file-input",
 	lineCount: 3,
-	filetypes: [".png", ".jpg", ".jpeg", ".webp"],
+	filetypes: [".png", ".jpg", ".jpeg", ".webp", ".avif"],
 	label: "Image"
 }, (val) => {
 	if (val) {
