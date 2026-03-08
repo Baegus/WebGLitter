@@ -43,6 +43,40 @@ const pane = new Pane({
 pane.registerPlugin(GradientPluginBundle);
 pane.registerPlugin(TweakpaneFileImportPlugin);
 
+let particleSystem; // Shared system instance
+
+// Helper to reduce boilerplate for particle system bindings
+const bindParticle = (folder, key, options, customChange) => {
+	const binding = folder.addBinding(PARAMS.particleSystem, key, options);
+	binding.on("change", (ev) => {
+		if (!particleSystem) return;
+		if (customChange) {
+			customChange(ev.value, binding);
+		} else {
+			particleSystem.updateConfig({ [key]: ev.value });
+		}
+	});
+	return binding;
+};
+
+const bindGradient = (folder, key, label, initialPoints, colorPicker = true, alphaPicker = false) => {
+	const blade = folder.addBlade({
+		view: "gradient",
+		label: label,
+		colorPicker,
+		colorPickerProps: { layout: "inline" },
+		alphaPicker,
+		timePicker: true,
+		initialPoints: initialPoints,
+	});
+	PARAMS.particleSystem[key] = blade.value.points;
+	blade.on("change", (ev) => {
+		PARAMS.particleSystem[key] = ev.value.points;
+		if (particleSystem) particleSystem.updateConfig({ [key]: ev.value.points });
+	});
+	return blade;
+};
+
 const canvasFolder = pane.addFolder({ title: "Canvas and Preview" });
 
 canvasFolder.addBinding(PARAMS.canvas, "size", {
@@ -71,6 +105,8 @@ const zoomBinding = canvasFolder.addBinding(viewState, "zoom", {
 	label: "Preview Zoom",
 });
 
+bindParticle(canvasFolder, "fpsLimit", { min: 0, max: 240, step: 1, label: "FPS Limit (0=no limit)" });
+
 const particlesFolder = pane.addFolder({ title: "Particles" });
 
 const presets = {
@@ -88,21 +124,6 @@ presetBlade.on("change", (ev) => {
 	console.log("Preset changed", ev.value);
 });
 
-
-// Helper to reduce boilerplate for particle system bindings
-const bindParticle = (folder, key, options, customChange) => {
-	const binding = folder.addBinding(PARAMS.particleSystem, key, options);
-	binding.on("change", (ev) => {
-		if (!particleSystem) return;
-		if (customChange) {
-			customChange(ev.value, binding);
-		} else {
-			particleSystem.updateConfig({ [key]: ev.value });
-		}
-	});
-	return binding;
-};
-bindParticle(particlesFolder, "fpsLimit", { min: 0, max: 240, step: 1, label: "FPS Limit (0=no limit)" });
 bindParticle(particlesFolder, "blendMode", {
 	options: {
 		Additive: "additive",
@@ -112,15 +133,67 @@ bindParticle(particlesFolder, "blendMode", {
 	label: "Blend Mode"
 });
 
-const lifetimeFolder = particlesFolder.addFolder({ title: "Lifetime" });
+const shapeFolder = particlesFolder.addFolder({ title: "Shape" });
+bindParticle(shapeFolder, "particleShape", {
+	options: {
+		"Circle (soft)": "softCircle",
+		Circle: "circle",
+		Rectangle: "rectangle",
+		Image: "image",
+	},
+	label: "Shape"
+}, (val) => {
+	particleSystem.updateConfig({ particleShape: val });
+	imageBinding.hidden = val !== "image";
+});
 
-let particleSystem; // Declare early so bindings can use it
-bindParticle(particlesFolder, "emissionRate", { min: 1, max: 10000, step: 5, label: "Emission Rate" });
+bindParticle(shapeFolder, "particleSize", { min: 1, max: 100, step: 1, label: "Scale (%)" });
+
+bindParticle(shapeFolder, "particleDimensions", {
+	x: { min: 1, max: 1000, step: 1 },
+	y: { min: 1, max: 1000, step: 1 },
+	label: "Dimensions (W/H)"
+});
+
+const imageBinding = bindParticle(shapeFolder, "particleImage", {
+	view: "file-input",
+	lineCount: 3,
+	filetypes: [".png", ".jpg", ".jpeg", ".webp"],
+	label: "Image"
+}, (val) => {
+	if (val) {
+		const url = URL.createObjectURL(val);
+		particleSystem.updateConfig({ particleImage: url });
+	} else {
+		particleSystem.updateConfig({ particleImage: null });
+	}
+});
+imageBinding.hidden = PARAMS.particleSystem.particleShape !== "image";
+
+const lifetimeFolder = particlesFolder.addFolder({ title: "Lifetime & Motion" });
 bindParticle(lifetimeFolder, "particleLife", { min: 0.1, max: 10.0, step: 0.1, label: "Lifetime (s)" });
-bindParticle(particlesFolder, "particleSpeed", { min: 0, max: 1000, step: 1, label: "Particle Speed" });
-bindParticle(particlesFolder, "particleSize", { min: 1, max: 100, step: 1, label: "Particle Size" });
+bindParticle(lifetimeFolder, "particleSpeed", { min: 0, max: 1000, step: 1, label: "Particle Speed" });
+bindGradient(lifetimeFolder, "opacityGradient", "Fade", [
+	{ time: 0, value: { r: 255, g: 255, b: 255, a: 1 } },
+	{ time: 1, value: { r: 255, g: 255, b: 255, a: 0 } },
+], false, true);
+
+const physicsFolder = particlesFolder.addFolder({ title: "Physics" });
+bindParticle(physicsFolder, "gravity", {
+	x: { min: -2000, max: 2000, step: 1 },
+	y: { min: -2000, max: 2000, step: 1 },
+	label: "Gravity (px/s²)"
+});
+
+bindGradient(particlesFolder, "colorGradient", "Color", [
+	{ time: 0, value: { r: 255, g: 0, b: 0, a: 1 } },
+	{ time: 1, value: { r: 0, g: 0, b: 255, a: 1 } },
+]);
 
 const emitterFolder = pane.addFolder({ title: "Emitter" });
+
+bindParticle(emitterFolder, "emissionRate", { min: 1, max: 10000, step: 5, label: "Emission Rate" });
+
 const emitterPosBinding = bindParticle(emitterFolder, "emitterPosition", {
 	x: { min: -1, max: 1, step: 0.01 },
 	y: { min: -1, max: 1, step: 0.01 },
@@ -174,76 +247,6 @@ const updateInteractionVisibility = (val) => {
 
 interactionTypeBinding.on("change", (ev) => updateInteractionVisibility(ev.value));
 updateInteractionVisibility(PARAMS.particleSystem.interactionType);
-
-const physicsFolder = pane.addFolder({ title: "Physics" });
-bindParticle(physicsFolder, "gravity", {
-	x: { min: -2000, max: 2000, step: 1 },
-	y: { min: -2000, max: 2000, step: 1 },
-	label: "Gravity (px/s²)"
-});
-
-const shapeFolder = pane.addFolder({ title: "Particle Shape" });
-bindParticle(shapeFolder, "particleShape", {
-	options: {
-		"Circle (soft)": "softCircle",
-		Circle: "circle",
-		Rectangle: "rectangle",
-		Image: "image",
-	},
-	label: "Shape"
-}, (val) => {
-	particleSystem.updateConfig({ particleShape: val });
-	imageBinding.hidden = val !== "image";
-});
-
-bindParticle(shapeFolder, "particleDimensions", {
-	x: { min: 1, max: 1000, step: 1 },
-	y: { min: 1, max: 1000, step: 1 },
-	label: "Dimensions (W/H)"
-});
-
-const imageBinding = bindParticle(shapeFolder, "particleImage", {
-	view: "file-input",
-	lineCount: 3,
-	filetypes: [".png", ".jpg", ".jpeg", ".webp"],
-	label: "Image"
-}, (val) => {
-	if (val) {
-		const url = URL.createObjectURL(val);
-		particleSystem.updateConfig({ particleImage: url });
-	} else {
-		particleSystem.updateConfig({ particleImage: null });
-	}
-});
-imageBinding.hidden = PARAMS.particleSystem.particleShape !== "image";
-
-const bindGradient = (folder, key, label, initialPoints, colorPicker = true, alphaPicker = false) => {
-	const blade = folder.addBlade({
-		view: "gradient",
-		label: label,
-		colorPicker,
-		colorPickerProps: { layout: "inline" },
-		alphaPicker,
-		timePicker: true,
-		initialPoints: initialPoints,
-	});
-	PARAMS.particleSystem[key] = blade.value.points;
-	blade.on("change", (ev) => {
-		PARAMS.particleSystem[key] = ev.value.points;
-		if (particleSystem) particleSystem.updateConfig({ [key]: ev.value.points });
-	});
-	return blade;
-};
-
-bindGradient(particlesFolder, "colorGradient", "Color", [
-	{ time: 0, value: { r: 255, g: 0, b: 0, a: 1 } },
-	{ time: 1, value: { r: 0, g: 0, b: 255, a: 1 } },
-]);
-
-bindGradient(lifetimeFolder, "opacityGradient", "Fade", [
-	{ time: 0, value: { r: 255, g: 255, b: 255, a: 1 } },
-	{ time: 1, value: { r: 255, g: 255, b: 255, a: 0 } },
-], false, true);
 
 pane.addBlade({ view: "separator" });
 const exportButton = pane.addButton({ title: "Export JSON" });
