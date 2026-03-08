@@ -2,7 +2,7 @@
 	"name": "webglitter",
 	"author": "Jaroslav Petrnoušek",
 	"version": "1.0.0",
-	"description": "A Parcel template for my portfolio website",
+	"description": "Tiny WebGL 2 Particle System + Editor",
 	"main": "dist/lib/WebGLitter.js",
 	"module": "dist/lib/WebGLitter.js",
 	"browserslist": "> 0.25%, last 2 versions, not dead",
@@ -17,7 +17,9 @@
 		"lib": {
 			"source": "src/js/WebGLitter.js",
 			"distDir": "dist/lib",
-			"outputFormat": "esmodule"
+			"outputFormat": "esmodule",
+			"isLibrary": true,
+			"optimize": true
 		}
 	},
 	"scripts": {

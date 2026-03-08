@@ -1,6 +1,10 @@
 {
 	"compress": {
-		"passes": 2
+		"passes": 2,
+		"global_defs": {
+			"process.env.NODE_ENV": "'production'",
+			"process.env.DEBUG": "false"
+		}
 	},
 	"mangle": true,
 	"format": {

@@ -24,9 +24,13 @@ module.exports = new Optimizer({
 				.trim();
 		});
 
+		code = code.replace(/\t+/g, "");
+		code = code.replace(/\n+/g, "\n");
+		code = code.replace(/;\n+/g, ";");
+
 		return {
-		contents: code,
-		map
+			contents: code,
+			map
 		};
 	}
 });

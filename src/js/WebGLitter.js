@@ -1,6 +1,6 @@
 const debugging = process.env.DEBUG == "true";
 
-export default class WebGLitter {
+class WebGLitter {
 	constructor(canvas, config = {}) {
 		this.canvas = canvas;
 		this.gl = canvas.getContext("webgl2", { antialias: false, alpha: true });
@@ -587,3 +587,6 @@ export default class WebGLitter {
 		if (this.particleTexture) gl.deleteTexture(this.particleTexture);
 	}
 }
+
+export { WebGLitter };
+export default WebGLitter;
