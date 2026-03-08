@@ -30,6 +30,9 @@ export default class WebGLitter {
 			repelStrength: 500.0,
 			gravity: { x: 0, y: 0 },
 			blendMode: "additive",
+			swayType: "none",
+			swayAmount: 0,
+			swayFrequency: 1.0,
 			...config
 		};
 
@@ -345,14 +348,15 @@ export default class WebGLitter {
 		const gl = this.gl;
 		const max = this.config.maxParticles;
 
-		// CPU tracks Physics: x, y, vx, vy, age, life
-		this.cpuData = new Float32Array(max * 6);
+		// CPU tracks Physics: x, y, vx, vy, age, life, phase
+		this.cpuData = new Float32Array(max * 7);
 		// GPU only gets layout: x, y, normalizedAge
 		this.gpuData = new Float32Array(max * 3);
 
 		for (let i = 0; i < max; i++) {
-			this.cpuData[i * 6 + 4] = 9999; // Force instant spawn
-			this.cpuData[i * 6 + 5] = 1;
+			this.cpuData[i * 7 + 4] = 9999; // Force instant spawn
+			this.cpuData[i * 7 + 5] = 1;
+			this.cpuData[i * 7 + 6] = Math.random() * Math.PI * 2;
 		}
 
 		this.buffer = gl.createBuffer();
@@ -423,50 +427,69 @@ export default class WebGLitter {
 			const gravX = this.config.gravity.x;
 			const gravY = this.config.gravity.y;
 
+			const swayType = this.config.swayType;
+			const swayAmount = this.config.swayAmount;
+			const swayFreq = this.config.swayFrequency;
+
 			// Blisteringly fast typed array JS calculation loop
 			for (let i = 0; i < count; i++) {
-				let i6 = i * 6;
+				let i7 = i * 7;
 				let i3 = i * 3;
 
-				let age = cpu[i6 + 4] + dt;
-				let life = cpu[i6 + 5];
+				let age = cpu[i7 + 4] + dt;
+				let life = cpu[i7 + 5];
 
 				if (age >= life) {
-					cpu[i6] = ex + (Math.random() - 0.5) * ew;
-					cpu[i6 + 1] = ey + (Math.random() - 0.5) * eh;
+					cpu[i7] = ex + (Math.random() - 0.5) * ew;
+					cpu[i7 + 1] = ey + (Math.random() - 0.5) * eh;
 
 					let angle = eAngle + (Math.random() - 0.5) * eSpread;
 					let speed = bSpeed + Math.random() * bSpeed * 0.5;
 
-					cpu[i6 + 2] = Math.cos(angle) * speed;
-					cpu[i6 + 3] = Math.sin(angle) * speed;
+					cpu[i7 + 2] = Math.cos(angle) * speed;
+					cpu[i7 + 3] = Math.sin(angle) * speed;
 
 					age = 0.0;
 					life = bLife + Math.random() * bLife * 0.5;
-					cpu[i6 + 5] = life;
+					cpu[i7 + 5] = life;
+					cpu[i7 + 6] = Math.random() * Math.PI * 2;
 				} else {
 					if (repel) {
-						let dx = cpu[i6] - px;
-						let dy = cpu[i6 + 1] - py;
+						let dx = cpu[i7] - px;
+						let dy = cpu[i7 + 1] - py;
 						let distSq = dx * dx + dy * dy;
 						if (distSq < rRadius * rRadius && distSq > 0) {
 							let dist = Math.sqrt(distSq);
 							let force = (1.0 - dist / rRadius) * rStrength * dt;
-							cpu[i6 + 2] += (dx / dist) * force;
-							cpu[i6 + 3] += (dy / dist) * force;
+							cpu[i7 + 2] += (dx / dist) * force;
+							cpu[i7 + 3] += (dy / dist) * force;
 						}
 					}
 
-					cpu[i6 + 2] += gravX * dt;
-					cpu[i6 + 3] += gravY * dt;
+					cpu[i7 + 2] += gravX * dt;
+					cpu[i7 + 3] += gravY * dt;
 
-					cpu[i6] += cpu[i6 + 2] * dt;
-					cpu[i6 + 1] += cpu[i6 + 3] * dt;
+					cpu[i7] += cpu[i7 + 2] * dt;
+					cpu[i7 + 1] += cpu[i7 + 3] * dt;
 				}
-				cpu[i6 + 4] = age;
+				cpu[i7 + 4] = age;
 
-				gpu[i3] = cpu[i6];
-				gpu[i3 + 1] = cpu[i6 + 1];
+				let sx = 0, sy = 0;
+				if (swayAmount > 0) {
+					const phase = cpu[i7 + 6];
+					const t = age * swayFreq + phase;
+					if (swayType === "sine") {
+						sx = Math.sin(t) * swayAmount;
+					} else if (swayType === "zigzag") {
+						sx = (Math.abs((t / Math.PI % 2) - 1) * 2 - 1) * swayAmount;
+					} else if (swayType === "circular") {
+						sx = Math.sin(t) * swayAmount;
+						sy = Math.cos(t) * swayAmount;
+					}
+				}
+
+				gpu[i3] = cpu[i7] + sx;
+				gpu[i3 + 1] = cpu[i7 + 1] + sy;
 				gpu[i3 + 2] = age / life;
 			}
 

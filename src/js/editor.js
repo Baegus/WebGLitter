@@ -32,6 +32,9 @@ const PARAMS = {
 		repelStrength: 500.0,
 		gravity: { x: 0, y: 0 },
 		blendMode: "additive",
+		swayType: "none",
+		swayAmount: 20,
+		swayFrequency: 2.0,
 	},
 };
 
@@ -173,6 +176,27 @@ imageBinding.hidden = PARAMS.particleSystem.particleShape !== "image";
 const lifetimeFolder = particlesFolder.addFolder({ title: "Lifetime & Motion" });
 bindParticle(lifetimeFolder, "particleLife", { min: 0.1, max: 10.0, step: 0.1, label: "Lifetime (s)" });
 bindParticle(lifetimeFolder, "particleSpeed", { min: 0, max: 1000, step: 1, label: "Particle Speed" });
+
+const swayTypeBinding = bindParticle(lifetimeFolder, "swayType", {
+	options: {
+		"None": "none",
+		"Sine": "sine",
+		"Zig-Zag": "zigzag",
+		"Circular": "circular",
+	},
+	label: "Sway Type"
+});
+const swayAmountBinding = bindParticle(lifetimeFolder, "swayAmount", { min: 0, max: 200, step: 1, label: "Sway Amount" });
+const swayFreqBinding = bindParticle(lifetimeFolder, "swayFrequency", { min: 0.1, max: 10, step: 0.1, label: "Sway Freq" });
+
+const updateSwayVisibility = (val) => {
+	const isEnabled = val !== "none";
+	swayAmountBinding.hidden = !isEnabled;
+	swayFreqBinding.hidden = !isEnabled;
+};
+swayTypeBinding.on("change", (ev) => updateSwayVisibility(ev.value));
+updateSwayVisibility(PARAMS.particleSystem.swayType);
+
 bindGradient(lifetimeFolder, "opacityGradient", "Fade", [
 	{ time: 0, value: { r: 255, g: 255, b: 255, a: 1 } },
 	{ time: 1, value: { r: 255, g: 255, b: 255, a: 0 } },
