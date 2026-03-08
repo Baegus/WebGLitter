@@ -44,3 +44,13 @@ export const randFloat = function (min, max) {
 	const str = (Math.random() * (max - min) + min).toFixed(1);
 	return parseFloat(str);
 }
+
+export const triggerDownload = function(filename, content, type) {
+	const blob = new Blob([content], { type });
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement("a");
+	a.href = url;
+	a.download = filename;
+	a.click();
+	URL.revokeObjectURL(url);
+}

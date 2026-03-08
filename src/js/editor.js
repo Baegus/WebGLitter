@@ -1,8 +1,9 @@
-import { getID } from "./modules/utils.js";
+import { getID } from "./modules/utils";
 import { Pane } from "tweakpane";
 import { GradientPluginBundle } from "tweakpane-plugin-gradient";
 import * as TweakpaneFileImportPlugin from "tweakpane-plugin-file-import";
 import WebGLitter from "./WebGLitter.js";
+import { exportJSON, exportHTML } from "./modules/exporters";
 
 const debugging = process.env.DEBUG == "true";
 
@@ -299,14 +300,26 @@ const updateInteractionVisibility = (val) => {
 interactionTypeBinding.on("change", (ev) => updateInteractionVisibility(ev.value));
 updateInteractionVisibility(PARAMS.particleSystem.interactionType);
 
-pane.addBlade({ view: "separator" });
-const exportButton = pane.addButton({ title: "Export JSON" });
+// Export Logic
+const exportFolder = pane.addFolder({ title: "Export" });
+const exportParams = {
+	format: "json",
+};
+exportFolder.addBinding(exportParams, "format", {
+	options: {
+		JSON: "json",
+		HTML: "html",
+	},
+	label: "Format"
+});
+
+const exportButton = exportFolder.addButton({ title: "Export" });
 exportButton.on("click", () => {
-	// Filter out any transient view state if it were in PARAMS, 
-	// but here we kept it separate.
-	const json = JSON.stringify(PARAMS, null, 2);
-	console.log(json);
-	alert("Configuration exported to console!");
+	if (exportParams.format === "json") {
+		exportJSON(PARAMS);
+	} else if (exportParams.format === "html") {
+		exportHTML(PARAMS);
+	}
 });
 
 const canvas = getID("preview-canvas");
