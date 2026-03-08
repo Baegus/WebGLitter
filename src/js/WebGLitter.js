@@ -106,7 +106,7 @@ export default class WebGLitter {
 		const gradC = ctxC.createLinearGradient(0, 0, width, 0);
 		if (this.config.colorGradient && this.config.colorGradient.length > 0) {
 			const points = [...this.config.colorGradient].sort((a, b) => a.time - b.time);
-			for (const p of points) gradC.addColorStop(p.time, `rgba(${p.value.r}, ${p.value.g}, ${p.value.b}, ${p.value.a})`);
+			for (const p of points) gradC.addColorStop(p.time, `rgba(${p.value[0]}, ${p.value[1]}, ${p.value[2]}, ${p.value[3]})`);
 		} else {
 			gradC.addColorStop(0, "rgba(255, 255, 255, 1)");
 			gradC.addColorStop(1, "rgba(255, 255, 255, 1)");
@@ -122,7 +122,7 @@ export default class WebGLitter {
 		const gradO = ctxO.createLinearGradient(0, 0, width, 0);
 		if (this.config.opacityGradient && this.config.opacityGradient.length > 0) {
 			const points = [...this.config.opacityGradient].sort((a, b) => a.time - b.time);
-			for (const p of points) gradO.addColorStop(p.time, `rgba(255, 255, 255, ${p.value.a})`);
+			for (const p of points) gradO.addColorStop(p.time, `rgba(255, 255, 255, ${p.value[3]})`);
 		} else {
 			gradO.addColorStop(0, "rgba(255, 255, 255, 1)");
 			gradO.addColorStop(1, "rgba(255, 255, 255, 1)");

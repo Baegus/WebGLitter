@@ -63,6 +63,11 @@ const bindParticle = (folder, key, options, customChange) => {
 };
 
 const bindGradient = (folder, key, label, initialPoints, colorPicker = true, alphaPicker = false) => {
+	const mapPoints = (points) => points.map(p => ({
+		time: p.time,
+		value: [p.value.r, p.value.g, p.value.b, p.value.a]
+	}));
+
 	const blade = folder.addBlade({
 		view: "gradient",
 		label: label,
@@ -72,10 +77,11 @@ const bindGradient = (folder, key, label, initialPoints, colorPicker = true, alp
 		timePicker: true,
 		initialPoints: initialPoints,
 	});
-	PARAMS.particleSystem[key] = blade.value.points;
+	PARAMS.particleSystem[key] = mapPoints(blade.value.points);
 	blade.on("change", (ev) => {
-		PARAMS.particleSystem[key] = ev.value.points;
-		if (particleSystem) particleSystem.updateConfig({ [key]: ev.value.points });
+		const mapped = mapPoints(ev.value.points);
+		PARAMS.particleSystem[key] = mapped;
+		if (particleSystem) particleSystem.updateConfig({ [key]: mapped });
 	});
 	return blade;
 };
