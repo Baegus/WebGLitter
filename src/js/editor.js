@@ -116,6 +116,27 @@ const zoomBinding = canvasFolder.addBinding(viewState, "zoom", {
 
 bindParticle(canvasFolder, "fpsLimit", { min: 0, max: 240, step: 1, label: "FPS Limit (0=no limit)" });
 
+
+canvasFolder.addButton({ title: "Refresh Preview" }).on("click", () => {
+	updateCanvas();
+	if (!particleSystem) return;
+	const config = { ...PARAMS.particleSystem };
+
+	// Convert UI emitter position (-1..1) to system position (0..1)
+	config.emitterPosition = {
+		x: (config.emitterPosition.x + 1) / 2,
+		y: (config.emitterPosition.y + 1) / 2
+	};
+
+	// Handle particle image if it's a File object from Tweakpane
+	if (config.particleImage instanceof File) {
+		config.particleImage = URL.createObjectURL(config.particleImage);
+	}
+
+	particleSystem.updateConfig(config);
+	particleSystem.restart();
+});
+
 const particlesFolder = pane.addFolder({ title: "Particles" });
 
 const presets = {

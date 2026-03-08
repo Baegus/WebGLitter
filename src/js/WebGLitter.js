@@ -37,6 +37,7 @@ export default class WebGLitter {
 		};
 
 		this.lastTime = performance.now();
+		this.spawnRemainder = 0;
 
 		this.degToRad = Math.PI / 180.0;
 
@@ -92,6 +93,17 @@ export default class WebGLitter {
 		if (newConfig.particleImage !== undefined) {
 			this.updateParticleImage();
 		}
+	}
+
+	restart() {
+		const max = this.config.maxParticles;
+		for (let i = 0; i < max; i++) {
+			this.cpuData[i * 7 + 4] = 9999; // Force instant spawn
+			this.cpuData[i * 7 + 5] = 1;
+			this.cpuData[i * 7 + 6] = Math.random() * Math.PI * 2;
+		}
+		this.activeParticles = 0;
+		this.lastTime = performance.now();
 	}
 
 	updateGradientTexture() {
@@ -218,6 +230,10 @@ export default class WebGLitter {
 		out lowp vec4 v_color;
 
 		void main() {
+			if (a_normalizedAge > 1.0) {
+				gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+				return;
+			}
 			vec2 clipSpace = a_position * u_rcpResolution - 1.0;
 			clipSpace.y = -clipSpace.y;
 			
@@ -393,18 +409,11 @@ export default class WebGLitter {
 		const dt = Math.min((now - this.lastTime) / 1000.0, 0.1);
 		this.lastTime = now;
 
-		const targetParticles = Math.min(this.config.emissionRate * this.config.particleLife, this.config.maxParticles);
-
-		if (this.activeParticles < targetParticles) {
-			this.activeParticles += this.config.emissionRate * dt;
-			if (this.activeParticles > targetParticles) this.activeParticles = targetParticles;
-		} else if (this.activeParticles > targetParticles) {
-			this.activeParticles = targetParticles;
-		}
-
+		this.spawnRemainder += this.config.emissionRate * dt;
+		
 		const count = Math.floor(this.activeParticles);
 
-		if (count > 0) {
+		if (count >= 0) {
 			// CPU Optimizations: Pre-calc maths to keep loop entirely raw arithmetic
 			const cpu = this.cpuData;
 			const gpu = this.gpuData;
@@ -440,19 +449,25 @@ export default class WebGLitter {
 				let life = cpu[i7 + 5];
 
 				if (age >= life) {
-					cpu[i7] = ex + (Math.random() - 0.5) * ew;
-					cpu[i7 + 1] = ey + (Math.random() - 0.5) * eh;
+					if (this.spawnRemainder >= 1.0) {
+						this.spawnRemainder -= 1.0;
+						cpu[i7] = ex + (Math.random() - 0.5) * ew;
+						cpu[i7 + 1] = ey + (Math.random() - 0.5) * eh;
 
-					let angle = eAngle + (Math.random() - 0.5) * eSpread;
-					let speed = bSpeed + Math.random() * bSpeed * 0.5;
+						let angle = eAngle + (Math.random() - 0.5) * eSpread;
+						let speed = bSpeed + Math.random() * bSpeed * 0.5;
 
-					cpu[i7 + 2] = Math.cos(angle) * speed;
-					cpu[i7 + 3] = Math.sin(angle) * speed;
+						cpu[i7 + 2] = Math.cos(angle) * speed;
+						cpu[i7 + 3] = Math.sin(angle) * speed;
 
-					age = 0.0;
-					life = bLife + Math.random() * bLife * 0.5;
-					cpu[i7 + 5] = life;
-					cpu[i7 + 6] = Math.random() * Math.PI * 2;
+						age = 0.0;
+						life = bLife + Math.random() * bLife * 0.5;
+						cpu[i7 + 5] = life;
+						cpu[i7 + 6] = Math.random() * Math.PI * 2;
+					} else {
+						// Keep it dead
+						age = life + 0.1;
+					}
 				} else {
 					if (repel) {
 						let dx = cpu[i7] - px;
@@ -493,9 +508,37 @@ export default class WebGLitter {
 				gpu[i3 + 2] = age / life;
 			}
 
+			// Grow pool if we still have budget and haven't hit max
+			while (this.spawnRemainder >= 1.0 && this.activeParticles < this.config.maxParticles) {
+				this.spawnRemainder -= 1.0;
+				let i = Math.floor(this.activeParticles);
+				let i7 = i * 7;
+				let i3 = i * 3;
+
+				cpu[i7] = ex + (Math.random() - 0.5) * ew;
+				cpu[i7 + 1] = ey + (Math.random() - 0.5) * eh;
+
+				let angle = eAngle + (Math.random() - 0.5) * eSpread;
+				let speed = bSpeed + Math.random() * bSpeed * 0.5;
+
+				cpu[i7 + 2] = Math.cos(angle) * speed;
+				cpu[i7 + 3] = Math.sin(angle) * speed;
+
+				cpu[i7 + 4] = 0.0; // Age
+				let life = bLife + Math.random() * bLife * 0.5;
+				cpu[i7 + 5] = life;
+				cpu[i7 + 6] = Math.random() * Math.PI * 2;
+
+				gpu[i3] = cpu[i7];
+				gpu[i3 + 1] = cpu[i7 + 1];
+				gpu[i3 + 2] = 0.0;
+
+				this.activeParticles++;
+			}
+
 			// Subload exact bytes. (If 1 particle, this pushes 12 bytes instead of the full buffer)
 			gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-			gl.bufferSubData(gl.ARRAY_BUFFER, 0, gpu, 0, count * 3);
+			gl.bufferSubData(gl.ARRAY_BUFFER, 0, gpu, 0, Math.floor(this.activeParticles) * 3);
 
 			gl.viewport(0, 0, this.canvas.width, this.canvas.height);
 			gl.clearColor(0, 0, 0, 0);
@@ -523,7 +566,7 @@ export default class WebGLitter {
 			}
 
 			gl.bindVertexArray(this.vao);
-			gl.drawArrays(gl.POINTS, 0, count);
+			gl.drawArrays(gl.POINTS, 0, Math.floor(this.activeParticles));
 		}
 
 		this.animationFrameId = requestAnimationFrame(this.render);
