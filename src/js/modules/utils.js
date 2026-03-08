@@ -1,5 +1,3 @@
-import { createTimer } from "animejs";
-
 export const getID = function(id) {
 	return document.getElementById(id);
 }
@@ -45,15 +43,4 @@ export const randInt = function (min, max) {
 export const randFloat = function (min, max) {
 	const str = (Math.random() * (max - min) + min).toFixed(1);
 	return parseFloat(str);
-}
-export const animeTimeout = (callback, delay) => {
-	return createTimer({
-		duration: delay,
-		onComplete: () => {
-			callback();
-		}
-	});
-}
-export const wait = async (duration) => {
-	return await createTimer({duration});
 }
