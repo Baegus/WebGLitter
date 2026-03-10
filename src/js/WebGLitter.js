@@ -32,7 +32,9 @@ class WebGLitter {
 			this.pointer.normalizedY = (e.clientY - rect.top) / rect.height;
 			this.pointer.active = true;
 		};
-		this.handlePointerLeave = () => {
+		this.handlePointerLeave = (e) => {
+			// For mouse, only deactivate on leave. For touch/pen, deactivate on up/leave/cancel.
+			if (e && e.type === "pointerup" && e.pointerType === "mouse") return;
 			this.pointer.active = false;
 		};
 		
@@ -437,7 +439,9 @@ class WebGLitter {
 		const dt = Math.min((now - this.lastTime) / 1000.0, 0.1);
 		this.lastTime = now;
 
-		if (this.emitting) this.spawnRemainder += this.config.emissionRate * dt;
+		if (this.emitting && (this.config.interactionType !== "follow" || this.pointer.active)) {
+			this.spawnRemainder += this.config.emissionRate * dt;
+		}
 		
 		const count = Math.floor(this.activeParticles);
 
