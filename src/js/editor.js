@@ -263,6 +263,22 @@ bindParticle(shapeFolder, "particleShape", {
 	imageBinding.hidden = val !== "image";
 });
 
+const imageBinding = bindParticle(shapeFolder, "particleImage", {
+	view: "file-input",
+	lineCount: 3,
+	filetypes: [".png", ".jpg", ".jpeg", ".webp", ".avif"],
+	label: "Image"
+}, (val) => {
+	if (isLoadingPreset) return;
+	if (val) {
+		const url = URL.createObjectURL(val);
+		particleSystem.updateConfig({ particleImage: url });
+	} else {
+		particleSystem.updateConfig({ particleImage: null });
+	}
+});
+imageBinding.hidden = PARAMS.particleSystem.particleShape !== "image";
+
 const scaleModeBinding = bindParticle(shapeFolder, "scaleMode", {
 	options: {
 		"Constant": "constant",
@@ -337,21 +353,7 @@ bindParticle(shapeFolder, "particleDimensions", {
 	label: "Dimensions (W/H)"
 });
 
-const imageBinding = bindParticle(shapeFolder, "particleImage", {
-	view: "file-input",
-	lineCount: 3,
-	filetypes: [".png", ".jpg", ".jpeg", ".webp", ".avif"],
-	label: "Image"
-}, (val) => {
-	if (isLoadingPreset) return;
-	if (val) {
-		const url = URL.createObjectURL(val);
-		particleSystem.updateConfig({ particleImage: url });
-	} else {
-		particleSystem.updateConfig({ particleImage: null });
-	}
-});
-imageBinding.hidden = PARAMS.particleSystem.particleShape !== "image";
+
 
 const lifetimeFolder = particlesFolder.addFolder({ title: "Lifetime & Motion" });
 bindParticle(lifetimeFolder, "particleLife", { min: 0.1, max: 10.0, step: 0.1, label: "Lifetime (s)" });
