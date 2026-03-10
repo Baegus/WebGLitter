@@ -37,7 +37,7 @@ export const DEFAULT_CONFIG = {
 
 export const presets = {
 	"Default": DEFAULT_CONFIG,
-	"Fire": {
+	"Flame Under Pointer": {
 		"emissionRate": 845,
 		"particleLife": 1.4,
 		"particleSpeed": 171,
