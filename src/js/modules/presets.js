@@ -20,6 +20,11 @@ export const DEFAULT_CONFIG = {
 	swayType: "none",
 	swayAmount: 20,
 	swayFrequency: 2.0,
+	scaleMode: "constant",
+	scaleGradient: [
+		{ time: 0, value: [255, 255, 255, 0.1] },
+		{ time: 1, value: [255, 255, 255, 0.1] }
+	],
 	colorGradient: [
 		{ time: 0, value: [255, 0, 0, 1] },
 		{ time: 1, value: [0, 0, 255, 1] }
@@ -37,6 +42,11 @@ export const presets = {
 		"particleLife": 1.4,
 		"particleSpeed": 171,
 		"particleSize": 66,
+		"scaleMode": "constant",
+		"scaleGradient": [
+			{ "time": 0, "value": [255, 255, 255, 0.66] },
+			{ "time": 1, "value": [255, 255, 255, 0.66] }
+		],
 		"particleDimensions": {
 			"x": 100,
 			"y": 100

@@ -5,6 +5,7 @@ import * as TweakpaneFileImportPlugin from "tweakpane-plugin-file-import";
 import WebGLitter from "./WebGLitter.js";
 import { exportJSON, exportHTML, uiToLibrary, libraryToUI } from "./modules/exporters";
 import { presets, DEFAULT_CONFIG } from "./modules/presets";
+import { updateGradientBladeValue } from "./modules/tweakpaneUtils.js";
 
 const debugging = process.env.DEBUG == "true";
 
@@ -18,6 +19,8 @@ const PARAMS = {
 		particleLife: DEFAULT_CONFIG.particleLife,
 		particleSpeed: DEFAULT_CONFIG.particleSpeed,
 		particleSize: DEFAULT_CONFIG.particleSize,
+		scaleMode: DEFAULT_CONFIG.scaleMode || "constant",
+		scaleGradient: null,
 		particleDimensions: { ...DEFAULT_CONFIG.particleDimensions },
 		fpsLimit: DEFAULT_CONFIG.fpsLimit || 60,
 		emitterPosition: { x: (DEFAULT_CONFIG.emitterPosition.x * 2) - 1, y: (DEFAULT_CONFIG.emitterPosition.y * 2) - 1 },
@@ -27,6 +30,8 @@ const PARAMS = {
 		emitterSpread: DEFAULT_CONFIG.emitterSpread,
 		particleShape: DEFAULT_CONFIG.particleShape,
 		particleImage: DEFAULT_CONFIG.particleImage || "",
+		scaleMode: DEFAULT_CONFIG.scaleMode,
+		scaleGradient: null,
 		colorGradient: null,
 		opacityGradient: null,
 		interactionType: DEFAULT_CONFIG.interactionType,
@@ -61,7 +66,7 @@ const mapToLibrary = (key, val) => {
 	if (key === "emitterPosition") {
 		return { x: (val.x + 1) / 2, y: (val.y + 1) / 2 };
 	}
-	if (key === "colorGradient" || key === "opacityGradient") {
+	if (key === "colorGradient" || key === "opacityGradient" || key === "scaleGradient") {
 		return val.map(p => ({
 			time: p.time,
 			value: [p.value.r, p.value.g, p.value.b, p.value.a]
@@ -172,12 +177,13 @@ presetBlade.on("change", (ev) => {
 	const defaultsUI = libraryToUI(DEFAULT_CONFIG);
 	const applyData = (data) => {
 		Object.keys(data).forEach(key => {
-			if (key !== "colorGradient" && key !== "opacityGradient") {
-				if (typeof data[key] === "object" && data[key] !== null && PARAMS.particleSystem[key]) {
-					Object.assign(PARAMS.particleSystem[key], data[key]);
-				} else {
-					PARAMS.particleSystem[key] = data[key];
-				}
+			if (key === "colorGradient" || key === "opacityGradient" || key === "scaleGradient") {
+				return;
+			}
+			if (typeof data[key] === "object" && data[key] !== null && PARAMS.particleSystem[key]) {
+				Object.assign(PARAMS.particleSystem[key], data[key]);
+			} else {
+				PARAMS.particleSystem[key] = data[key];
 			}
 		});
 	};
@@ -199,53 +205,12 @@ presetBlade.on("change", (ev) => {
 		const blade = blades[key];
 		if (!blade || !uiPoints) return;
 
-		// Access the internal controllers to reset selection state
-		const controller = blade.controller || blade.controller_;
-		const vc = controller?.valueController; // GradientController
-
-		if (vc) {
-			try {
-				const rc = vc._gradientRangeController; // GradientRangeController
-				if (rc) {
-					// Use the plugin's own methods to clear selection. 
-					// This ensures the view is also updated and events are fired.
-					if (typeof rc.setActivePointId === "function") {
-						rc.setActivePointId(null);
-					} else {
-						rc._activePointId = null;
-						if (rc.view) rc.view.activePointId = null;
-					}
-
-					if (typeof rc.setDraggingPointId === "function") {
-						rc.setDraggingPointId(null);
-					} else {
-						rc._draggingPointId = null;
-						if (rc.view) rc.view.draggingPointId = null;
-					}
-				}
-				// Ensure the main controller also knows there's no active point
-				vc._activePointId = null;
-				if (typeof vc.updateDisabledState === "function") vc.updateDisabledState();
-			} catch (e) {
-				if (debugging) console.warn("Gradient state reset failed", e);
-			}
-		}
-
-		const gradient = blade.value;
-		if (gradient && typeof gradient.clone === "function") {
-			const newGradient = gradient.clone();
-			newGradient.points = JSON.parse(JSON.stringify(uiPoints));
-			blade.value = newGradient;
-		} else {
-			// Fallback for initialization or if clone is missing
-			blade.value = { points: JSON.parse(JSON.stringify(uiPoints)) };
-		}
-
-		PARAMS.particleSystem[key] = blade.value.points;
+		PARAMS.particleSystem[key] = updateGradientBladeValue(blade, uiPoints, debugging);
 	};
 
 	updateGradientBlade("colorGradient", uiData.colorGradient);
 	updateGradientBlade("opacityGradient", uiData.opacityGradient);
+	updateGradientBlade("scaleGradient", uiData.scaleGradient);
 
 	// Sync direction and angle
 	if (preset.emitterDirection) {
@@ -260,6 +225,7 @@ presetBlade.on("change", (ev) => {
 	pane.refresh();
 	
 	// Update manual visibility logic
+	updateScaleVisibility(PARAMS.particleSystem.scaleMode);
 	updateSwayVisibility(PARAMS.particleSystem.swayType);
 	updateInteractionVisibility(PARAMS.particleSystem.interactionType);
 	imageBinding.hidden = PARAMS.particleSystem.particleShape !== "image";
@@ -290,7 +256,69 @@ bindParticle(shapeFolder, "particleShape", {
 	imageBinding.hidden = val !== "image";
 });
 
-bindParticle(shapeFolder, "particleSize", { min: 1, max: 100, step: 1, label: "Scale (%)" });
+const scaleModeBinding = bindParticle(shapeFolder, "scaleMode", {
+	options: {
+		"Constant": "constant",
+		"Variable": "variable",
+	},
+	label: "Scale Mode"
+}, (val) => {
+	const currentScale = PARAMS.particleSystem.particleSize / 100;
+	let newPts = [];
+	if (val === "constant") {
+		newPts = [
+			{ time: 0, value: { r: 255, g: 255, b: 255, a: currentScale } },
+			{ time: 1, value: { r: 255, g: 255, b: 255, a: currentScale } }
+		];
+	} else {
+		newPts = [
+			{ time: 0, value: { r: 255, g: 255, b: 255, a: currentScale } },
+			{ time: 1, value: { r: 255, g: 255, b: 255, a: 0 } }
+		];
+	}
+
+	const blade = blades.scaleGradient;
+	if (blade) {
+		PARAMS.particleSystem.scaleGradient = updateGradientBladeValue(blade, newPts, debugging);
+	}
+
+	particleSystem.updateConfig({ 
+		scaleMode: val,
+		scaleGradient: mapToLibrary("scaleGradient", PARAMS.particleSystem.scaleGradient) 
+	});
+	updateScaleVisibility(val);
+});
+
+const scaleConstantBinding = bindParticle(shapeFolder, "particleSize", { min: 1, max: 100, step: 1, label: "Scale (%)" }, (val) => {
+	// Synchronize Constant slider to update scaleGradient to constant value points
+	const alpha = val / 100;
+	const pts = [
+		{ time: 0, value: { r: 255, g: 255, b: 255, a: alpha } },
+		{ time: 1, value: { r: 255, g: 255, b: 255, a: alpha } }
+	];
+
+	const blade = blades.scaleGradient;
+	if (blade) {
+		PARAMS.particleSystem.scaleGradient = updateGradientBladeValue(blade, pts, debugging);
+	}
+
+	particleSystem.updateConfig({ 
+		particleSize: val, 
+		scaleGradient: mapToLibrary("scaleGradient", PARAMS.particleSystem.scaleGradient) 
+	});
+});
+
+const scaleGradientBlade = bindGradient(shapeFolder, "scaleGradient", "Scale Gradient", [
+	{ time: 0, value: { r: 255, g: 255, b: 255, a: DEFAULT_CONFIG.particleSize / 100 } },
+	{ time: 1, value: { r: 255, g: 255, b: 255, a: DEFAULT_CONFIG.particleSize / 100 } },
+], false, true);
+
+function updateScaleVisibility(val) {
+	const isConstant = val === "constant";
+	scaleConstantBinding.hidden = !isConstant;
+	blades.scaleGradient.hidden = isConstant;
+}
+updateScaleVisibility(PARAMS.particleSystem.scaleMode);
 
 bindParticle(shapeFolder, "particleDimensions", {
 	x: { min: 1, max: 1000, step: 1 },

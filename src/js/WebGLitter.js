@@ -43,7 +43,7 @@ class WebGLitter {
 		this.initWebGL();
 		this.initParticles();
 
-		if (this.config.colorGradient || this.config.opacityGradient) {
+		if (this.config.colorGradient || this.config.opacityGradient || this.config.scaleGradient) {
 			this.updateGradientTexture();
 		}
 		if (this.config.particleImage || this.config.particleShape === "image") {
@@ -67,7 +67,7 @@ class WebGLitter {
 		if (newConfig.blendMode !== undefined) {
 			this.applyBlendMode();
 		}
-		if (newConfig.colorGradient !== undefined || newConfig.opacityGradient !== undefined) {
+		if (newConfig.colorGradient !== undefined || newConfig.opacityGradient !== undefined || newConfig.scaleGradient !== undefined) {
 			this.updateGradientTexture();
 		}
 		if (newConfig.particleImage !== undefined) {
@@ -123,21 +123,54 @@ class WebGLitter {
 		ctxO.clearRect(0, 0, width, 1);
 		ctxO.fillRect(0, 0, width, 1);
 
+		const canvasS = document.createElement("canvas");
+		canvasS.width = width;
+		canvasS.height = 1;
+		const ctxS = canvasS.getContext("2d", { willReadFrequently: true });
+
+		const gradS = ctxS.createLinearGradient(0, 0, width, 0);
+		if (this.config.scaleGradient && this.config.scaleGradient.length > 0) {
+			const points = [...this.config.scaleGradient].sort((a, b) => a.time - b.time);
+			for (const p of points) gradS.addColorStop(p.time, `rgba(255, 255, 255, ${p.value[3]})`);
+		} else {
+			gradS.addColorStop(0, "rgba(255, 255, 255, 1)");
+			gradS.addColorStop(1, "rgba(255, 255, 255, 1)");
+		}
+		ctxS.fillStyle = gradS;
+		ctxS.clearRect(0, 0, width, 1);
+		ctxS.fillRect(0, 0, width, 1);
+
 		const dataC = ctxC.getImageData(0, 0, width, 1).data;
 		const dataO = ctxO.getImageData(0, 0, width, 1).data;
+		const dataS = ctxS.getImageData(0, 0, width, 1).data;
 
 		const finalData = new Uint8Array(width * 4);
+		const scaleData = new Uint8Array(width * 4);
 		for (let i = 0; i < width; i++) {
 			finalData[i * 4 + 0] = dataC[i * 4 + 0];
 			finalData[i * 4 + 1] = dataC[i * 4 + 1];
 			finalData[i * 4 + 2] = dataC[i * 4 + 2];
 			finalData[i * 4 + 3] = Math.round((dataC[i * 4 + 3] * dataO[i * 4 + 3]) / 255.0);
+
+			scaleData[i * 4 + 0] = 255;
+			scaleData[i * 4 + 1] = 255;
+			scaleData[i * 4 + 2] = 255;
+			scaleData[i * 4 + 3] = dataS[i * 4 + 3];
 		}
 
 		if (!this.gradientTexture) this.gradientTexture = gl.createTexture();
 
 		gl.bindTexture(gl.TEXTURE_2D, this.gradientTexture);
 		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, finalData);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+		if (!this.scaleTexture) this.scaleTexture = gl.createTexture();
+
+		gl.bindTexture(gl.TEXTURE_2D, this.scaleTexture);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, scaleData);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -208,6 +241,7 @@ class WebGLitter {
 		uniform vec2 u_rcpResolution;
 		uniform float u_size;
 		uniform sampler2D u_gradientTexture;
+		uniform sampler2D u_scaleTexture;
 
 		out lowp vec4 v_color;
 
@@ -220,7 +254,9 @@ class WebGLitter {
 			clipSpace.y = -clipSpace.y;
 			
 			gl_Position = vec4(clipSpace, 0.0, 1.0);
-			gl_PointSize = u_size;
+			
+			float scale = texture(u_scaleTexture, vec2(a_normalizedAge, 0.5)).a;
+			gl_PointSize = u_size * scale;
 			
 			v_color = texture(u_gradientTexture, vec2(a_normalizedAge, 0.5));
 		}
@@ -305,6 +341,7 @@ class WebGLitter {
 			size: gl.getUniformLocation(this.renderProgram, "u_size"),
 			shapeScale: gl.getUniformLocation(this.renderProgram, "u_shapeScale"),
 			gradientTexture: gl.getUniformLocation(this.renderProgram, "u_gradientTexture"),
+			scaleTexture: gl.getUniformLocation(this.renderProgram, "u_scaleTexture"),
 			...(useImage ? { particleTexture: gl.getUniformLocation(this.renderProgram, "u_particleTexture") } : {})
 		};
 	}
@@ -527,8 +564,8 @@ class WebGLitter {
 			gl.clearColor(0, 0, 0, 0);
 			gl.clear(gl.COLOR_BUFFER_BIT);
 
-			const actualW = this.config.particleDimensions.x * (this.config.particleSize / 100.0);
-			const actualH = this.config.particleDimensions.y * (this.config.particleSize / 100.0);
+			const actualW = this.config.particleDimensions.x;
+			const actualH = this.config.particleDimensions.y;
 			const maxDim = Math.max(actualW, actualH, 0.001);
 
 			gl.useProgram(this.renderProgram);
@@ -540,6 +577,12 @@ class WebGLitter {
 				gl.activeTexture(gl.TEXTURE0);
 				gl.bindTexture(gl.TEXTURE_2D, this.gradientTexture);
 				gl.uniform1i(this.uniforms.render.gradientTexture, 0);
+			}
+
+			if (this.scaleTexture) {
+				gl.activeTexture(gl.TEXTURE2);
+				gl.bindTexture(gl.TEXTURE_2D, this.scaleTexture);
+				gl.uniform1i(this.uniforms.render.scaleTexture, 2);
 			}
 
 			if (this.config.particleShape === "image" && this.particleTexture) {
@@ -567,6 +610,7 @@ class WebGLitter {
 		gl.deleteBuffer(this.buffer);
 		gl.deleteVertexArray(this.vao);
 		if (this.gradientTexture) gl.deleteTexture(this.gradientTexture);
+		if (this.scaleTexture) gl.deleteTexture(this.scaleTexture);
 		if (this.particleTexture) gl.deleteTexture(this.particleTexture);
 	}
 }

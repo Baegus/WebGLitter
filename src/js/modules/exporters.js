@@ -25,6 +25,7 @@ export const uiToLibrary = (uiParams) => {
 	// Gradients: UI Points -> Array Colors
 	if (config.colorGradient) config.colorGradient = mapColorToLibrary(config.colorGradient);
 	if (config.opacityGradient) config.opacityGradient = mapColorToLibrary(config.opacityGradient);
+	if (config.scaleGradient) config.scaleGradient = mapColorToLibrary(config.scaleGradient);
 
 	return config;
 }
@@ -41,6 +42,7 @@ export const libraryToUI = (libConfig) => {
 	// Gradients: Array Colors -> UI Points
 	if (params.colorGradient) params.colorGradient = mapColorToUI(params.colorGradient);
 	if (params.opacityGradient) params.opacityGradient = mapColorToUI(params.opacityGradient);
+	if (params.scaleGradient) params.scaleGradient = mapColorToUI(params.scaleGradient);
 
 	return params;
 }
