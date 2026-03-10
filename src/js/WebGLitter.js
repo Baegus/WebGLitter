@@ -90,72 +90,47 @@ class WebGLitter {
 		const gl = this.gl;
 		const width = 256;
 
-		const canvasC = document.createElement("canvas");
-		canvasC.width = width;
-		canvasC.height = 1;
-		const ctxC = canvasC.getContext("2d", { willReadFrequently: true });
+		// Sample a sorted gradient stops array at t in [0,1].
+		// value format: [r(0-255), g(0-255), b(0-255), a(0-1)]
+		const sampleGradient = (stops, t) => {
+			if (t <= stops[0].time) return stops[0].value;
+			const last = stops[stops.length - 1];
+			if (t >= last.time) return last.value;
+			let lo = 0;
+			while (lo < stops.length - 2 && stops[lo + 1].time <= t) lo++;
+			const a = stops[lo], b = stops[lo + 1];
+			const f = (t - a.time) / (b.time - a.time);
+			return [
+				a.value[0] + f * (b.value[0] - a.value[0]),
+				a.value[1] + f * (b.value[1] - a.value[1]),
+				a.value[2] + f * (b.value[2] - a.value[2]),
+				a.value[3] + f * (b.value[3] - a.value[3]),
+			];
+		};
 
-		const gradC = ctxC.createLinearGradient(0, 0, width, 0);
-		if (this.config.colorGradient && this.config.colorGradient.length > 0) {
-			const points = [...this.config.colorGradient].sort((a, b) => a.time - b.time);
-			for (const p of points) gradC.addColorStop(p.time, `rgba(${p.value[0]}, ${p.value[1]}, ${p.value[2]}, ${p.value[3]})`);
-		} else {
-			gradC.addColorStop(0, "rgba(255, 255, 255, 1)");
-			gradC.addColorStop(1, "rgba(255, 255, 255, 1)");
-		}
-		ctxC.fillStyle = gradC;
-		ctxC.fillRect(0, 0, width, 1);
-
-		const canvasO = document.createElement("canvas");
-		canvasO.width = width;
-		canvasO.height = 1;
-		const ctxO = canvasO.getContext("2d", { willReadFrequently: true });
-
-		const gradO = ctxO.createLinearGradient(0, 0, width, 0);
-		if (this.config.opacityGradient && this.config.opacityGradient.length > 0) {
-			const points = [...this.config.opacityGradient].sort((a, b) => a.time - b.time);
-			for (const p of points) gradO.addColorStop(p.time, `rgba(255, 255, 255, ${p.value[3]})`);
-		} else {
-			gradO.addColorStop(0, "rgba(255, 255, 255, 1)");
-			gradO.addColorStop(1, "rgba(255, 255, 255, 1)");
-		}
-		ctxO.fillStyle = gradO;
-		ctxO.clearRect(0, 0, width, 1);
-		ctxO.fillRect(0, 0, width, 1);
-
-		const canvasS = document.createElement("canvas");
-		canvasS.width = width;
-		canvasS.height = 1;
-		const ctxS = canvasS.getContext("2d", { willReadFrequently: true });
-
-		const gradS = ctxS.createLinearGradient(0, 0, width, 0);
-		if (this.config.scaleGradient && this.config.scaleGradient.length > 0) {
-			const points = [...this.config.scaleGradient].sort((a, b) => a.time - b.time);
-			for (const p of points) gradS.addColorStop(p.time, `rgba(255, 255, 255, ${p.value[3]})`);
-		} else {
-			gradS.addColorStop(0, "rgba(255, 255, 255, 1)");
-			gradS.addColorStop(1, "rgba(255, 255, 255, 1)");
-		}
-		ctxS.fillStyle = gradS;
-		ctxS.clearRect(0, 0, width, 1);
-		ctxS.fillRect(0, 0, width, 1);
-
-		const dataC = ctxC.getImageData(0, 0, width, 1).data;
-		const dataO = ctxO.getImageData(0, 0, width, 1).data;
-		const dataS = ctxS.getImageData(0, 0, width, 1).data;
+		const defaultWhite = [{ time: 0, value: [255, 255, 255, 1] }, { time: 1, value: [255, 255, 255, 1] }];
+		const colorStops   = (this.config.colorGradient   && this.config.colorGradient.length   > 0) ? [...this.config.colorGradient].sort((a, b)   => a.time - b.time) : defaultWhite;
+		const opacityStops = (this.config.opacityGradient && this.config.opacityGradient.length > 0) ? [...this.config.opacityGradient].sort((a, b) => a.time - b.time) : defaultWhite;
+		const scaleStops   = (this.config.scaleGradient   && this.config.scaleGradient.length   > 0) ? [...this.config.scaleGradient].sort((a, b)   => a.time - b.time) : defaultWhite;
 
 		const finalData = new Uint8Array(width * 4);
 		const scaleData = new Uint8Array(width * 4);
+		const inv = 1 / (width - 1);
 		for (let i = 0; i < width; i++) {
-			finalData[i * 4 + 0] = dataC[i * 4 + 0];
-			finalData[i * 4 + 1] = dataC[i * 4 + 1];
-			finalData[i * 4 + 2] = dataC[i * 4 + 2];
-			finalData[i * 4 + 3] = Math.round((dataC[i * 4 + 3] * dataO[i * 4 + 3]) / 255.0);
+			const t = i * inv;
+			const c = sampleGradient(colorStops, t);
+			const o = sampleGradient(opacityStops, t);
+			const s = sampleGradient(scaleStops, t);
+
+			finalData[i * 4 + 0] = c[0] + 0.5 | 0;
+			finalData[i * 4 + 1] = c[1] + 0.5 | 0;
+			finalData[i * 4 + 2] = c[2] + 0.5 | 0;
+			finalData[i * 4 + 3] = (c[3] * o[3] * 255 + 0.5) | 0;
 
 			scaleData[i * 4 + 0] = 255;
 			scaleData[i * 4 + 1] = 255;
 			scaleData[i * 4 + 2] = 255;
-			scaleData[i * 4 + 3] = dataS[i * 4 + 3];
+			scaleData[i * 4 + 3] = (s[3] * 255 + 0.5) | 0;
 		}
 
 		if (!this.gradientTexture) this.gradientTexture = gl.createTexture();
