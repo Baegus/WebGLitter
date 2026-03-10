@@ -60,6 +60,7 @@ pane.registerPlugin(TweakpaneFileImportPlugin.default || TweakpaneFileImportPlug
 
 let particleSystem; // Shared system instance
 const blades = {}; // Store blade references
+let isLoadingPreset = false; // Prevent logic during programmatic loading
 
 // Mapping helper for single properties
 const mapToLibrary = (key, val) => {
@@ -83,6 +84,7 @@ const bindParticle = (folder, key, options, customChange) => {
 		if (customChange) {
 			customChange(ev.value, binding);
 		} else {
+			if (isLoadingPreset) return;
 			particleSystem.updateConfig({ [key]: mapToLibrary(key, ev.value) });
 		}
 	});
@@ -102,6 +104,7 @@ const bindGradient = (folder, key, label, initialPoints, colorPicker = true, alp
 	blades[key] = blade;
 	PARAMS.particleSystem[key] = blade.value.points;
 	blade.on("change", (ev) => {
+		if (isLoadingPreset) return;
 		PARAMS.particleSystem[key] = ev.value.points;
 		if (particleSystem) {
 			particleSystem.updateConfig({ [key]: mapToLibrary(key, ev.value.points) });
@@ -173,6 +176,8 @@ presetBlade.on("change", (ev) => {
 	const preset = ev.value;
 	if (!preset) return;
 
+	isLoadingPreset = true;
+
 	// Reset to defaults first to ensure properties not in the preset are cleared
 	const defaultsUI = libraryToUI(DEFAULT_CONFIG);
 	const applyData = (data) => {
@@ -231,6 +236,7 @@ presetBlade.on("change", (ev) => {
 	imageBinding.hidden = PARAMS.particleSystem.particleShape !== "image";
 
 	refreshPreview();
+	isLoadingPreset = false;
 });
 
 bindParticle(particlesFolder, "blendMode", {
@@ -252,6 +258,7 @@ bindParticle(shapeFolder, "particleShape", {
 	},
 	label: "Shape"
 }, (val) => {
+	if (isLoadingPreset) return;
 	particleSystem.updateConfig({ particleShape: val });
 	imageBinding.hidden = val !== "image";
 });
@@ -263,6 +270,8 @@ const scaleModeBinding = bindParticle(shapeFolder, "scaleMode", {
 	},
 	label: "Scale Mode"
 }, (val) => {
+	if (isLoadingPreset) return;
+
 	const currentScale = PARAMS.particleSystem.particleSize / 100;
 	let newPts = [];
 	if (val === "constant") {
@@ -290,6 +299,8 @@ const scaleModeBinding = bindParticle(shapeFolder, "scaleMode", {
 });
 
 const scaleConstantBinding = bindParticle(shapeFolder, "particleSize", { min: 1, max: 100, step: 1, label: "Scale (%)" }, (val) => {
+	if (isLoadingPreset) return;
+	
 	// Synchronize Constant slider to update scaleGradient to constant value points
 	const alpha = val / 100;
 	const pts = [
@@ -332,6 +343,7 @@ const imageBinding = bindParticle(shapeFolder, "particleImage", {
 	filetypes: [".png", ".jpg", ".jpeg", ".webp", ".avif"],
 	label: "Image"
 }, (val) => {
+	if (isLoadingPreset) return;
 	if (val) {
 		const url = URL.createObjectURL(val);
 		particleSystem.updateConfig({ particleImage: url });
@@ -391,6 +403,7 @@ const emitterPosBinding = bindParticle(emitterFolder, "emitterPosition", {
 	y: { min: -1, max: 1, step: 0.01 },
 	label: "Position"
 }, (val) => {
+	if (isLoadingPreset) return;
 	particleSystem.updateConfig({ 
 		emitterPosition: mapToLibrary("emitterPosition", val) 
 	});
@@ -409,6 +422,7 @@ bindParticle(emitterFolder, "emitterDirection", {
 	expanded: true,
 	label: "Direction"
 }, (val) => {
+	if (isLoadingPreset) return;
 	const angle = Math.atan2(val.y, val.x) * (180 / Math.PI);
 	PARAMS.particleSystem.emitterAngle = angle;
 	particleSystem.updateConfig({ emitterAngle: angle });
