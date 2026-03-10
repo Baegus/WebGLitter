@@ -67,10 +67,6 @@ export const presets = {
 			"y": 0
 		},
 		"emitterAngle": -90,
-		"emitterDirection": {
-			"x": 0,
-			"y": -1
-		},
 		"emitterSpread": 0,
 		"particleShape": "softCircle",
 		"particleImage": "",

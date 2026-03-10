@@ -22,6 +22,9 @@ export const uiToLibrary = (uiParams) => {
 		config.emitterPosition.y = (config.emitterPosition.y + 1) / 2;
 	}
 
+	// Remove editor-only properties
+	delete config.emitterDirection;
+
 	// Gradients: UI Points -> Array Colors
 	if (config.colorGradient) config.colorGradient = mapColorToLibrary(config.colorGradient);
 	if (config.opacityGradient) config.opacityGradient = mapColorToLibrary(config.opacityGradient);
