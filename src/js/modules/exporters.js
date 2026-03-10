@@ -62,34 +62,118 @@ export const exportHTML = (PARAMS) => {
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>WebGLitter Particle System</title>
 	<style>
-		body { 
-			margin: 0; 
-			overflow: hidden; 
-			display: flex; 
-			justify-content: center; 
-			align-items: center; 
-			height: 100vh;
-			font-family: sans-serif;
+		body {
+			font-family: system-ui, sans-serif;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			min-height: 100vh;
+			gap: 16px;
+			padding: 20px;
 		}
-		canvas { 
-			display: block; 
-			max-width: 100%; 
-			max-height: 100%; 
-			background: ${bgColor};
+		canvas {
+			display: block;
+			max-width: 100%;
+			background: #000000ff;
 		}
 	</style>
 </head>
 <body>
 
-<canvas id="particle-canvas"></canvas>
+<canvas id="particleCanvas"></canvas>
+
+<div class="controls">
+	<button id="btnPause">Pause</button>
+	<button id="btnEmit">Stop emitting</button>
+	<button id="btnRestart">Restart</button>
+	<button id="btnDestroy">Destroy</button>
+	<label>Emission rate
+		<input id="rateSlider" type="range" min="1" max="10000" step="10" value="${config.emissionRate}">
+	</label>
+	<label>Speed
+		<input id="speedSlider" type="range" min="0" max="1000" step="5" value="${config.particleSpeed}">
+	</label>
+</div>
+
 <script type="module">
 import WebGLitter from "./WebGLitter.js";
+
+// ---------------------------------------------------------------------------
+// Config — edit any property here before or after instantiation
+// ---------------------------------------------------------------------------
 const config =
 ${JSON.stringify(config, null, "\t")}
-const canvas = document.getElementById("particle-canvas");
+
+// ---------------------------------------------------------------------------
+// Setup
+// ---------------------------------------------------------------------------
+const canvas = document.getElementById("particleCanvas");
 canvas.width = ${canvasSize.x};
 canvas.height = ${canvasSize.y};
-const particles = new WebGLitter(canvas, config);
+
+let particles = new WebGLitter(canvas, config);
+
+// ---------------------------------------------------------------------------
+// Control examples
+// ---------------------------------------------------------------------------
+
+// Pause / Resume — freezes the entire animation loop
+btnPause.addEventListener("click", () => {
+	if (particles.paused) {
+		particles.resume();
+		btnPause.textContent = "Pause";
+		btnPause.classList.remove("active");
+	} else {
+		particles.pause();
+		btnPause.textContent = "Resume";
+		btnPause.classList.add("active");
+	}
+});
+
+// Stop / Start emitting — lets live particles finish but no new ones spawn
+btnEmit.addEventListener("click", () => {
+	if (particles.emitting) {
+		particles.stopEmitting();
+		btnEmit.textContent = "Start emitting";
+		btnEmit.classList.add("active");
+	} else {
+		particles.startEmitting();
+		btnEmit.textContent = "Stop emitting";
+		btnEmit.classList.remove("active");
+	}
+});
+
+// Restart — kills all current particles and starts fresh
+btnRestart.addEventListener("click", () => {
+	particles.restart();
+});
+
+// Destroy + re‑create — full teardown and re‑init
+btnDestroy.addEventListener("click", () => {
+	if (btnDestroy.textContent === "Destroy") {
+		particles.destroy();
+		particles = null;
+		btnDestroy.textContent = "Re-create";
+		btnDestroy.classList.add("active");
+		btnPause.disabled = btnEmit.disabled = true;
+	} else {
+		particles = new WebGLitter(canvas, config);
+		btnDestroy.textContent = "Destroy";
+		btnDestroy.classList.remove("active");
+		btnPause.disabled = btnEmit.disabled = false;
+	}
+});
+
+// Live config update — change any property at any time via updateConfig()
+rateSlider.addEventListener("input", () => {
+	const val = Number(rateSlider.value);
+	if (particles) particles.updateConfig({ emissionRate: val });
+});
+
+speedSlider.addEventListener("input", () => {
+	const val = Number(speedSlider.value);
+	if (particles) particles.updateConfig({ particleSpeed: val });
+});
 </script>
 
 </body>

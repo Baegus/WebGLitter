@@ -18,6 +18,8 @@ class WebGLitter {
 
 		this.lastTime = performance.now();
 		this.spawnRemainder = 0;
+		this.paused = false;
+		this.emitting = true;
 
 		this.degToRad = Math.PI / 180.0;
 
@@ -54,9 +56,40 @@ class WebGLitter {
 		this.animationFrameId = requestAnimationFrame(this.render);
 	}
 
+	/** Pause the animation loop entirely (no updates, no rendering). */
+	pause() {
+		if (this.paused) return;
+		this.paused = true;
+		cancelAnimationFrame(this.animationFrameId);
+		this.animationFrameId = null;
+	}
+
+	/** Resume a paused animation loop. */
+	resume() {
+		if (!this.paused) return;
+		this.paused = false;
+		this.lastTime = performance.now(); // Prevent a huge dt jump after a long pause
+		this.animationFrameId = requestAnimationFrame(this.render);
+	}
+
+	/** Stop spawning new particles; existing particles keep animating until they die. */
+	stopEmitting() {
+		this.emitting = false;
+	}
+
+	/** Resume spawning new particles. */
+	startEmitting() {
+		this.emitting = true;
+	}
+
 	updateConfig(newConfig) {
 		const oldShape = this.config.particleShape;
+		const oldMax = this.config.maxParticles;
 		this.config = { ...this.config, ...newConfig };
+
+		if (newConfig.maxParticles !== undefined && newConfig.maxParticles !== oldMax) {
+			this.initParticles();
+		}
 
 		if (oldShape !== this.config.particleShape) {
 			this.initRenderProgram();
@@ -404,7 +437,7 @@ class WebGLitter {
 		const dt = Math.min((now - this.lastTime) / 1000.0, 0.1);
 		this.lastTime = now;
 
-		this.spawnRemainder += this.config.emissionRate * dt;
+		if (this.emitting) this.spawnRemainder += this.config.emissionRate * dt;
 		
 		const count = Math.floor(this.activeParticles);
 
