@@ -3,8 +3,8 @@ export const DEFAULT_CONFIG = {
 	emissionRate: 5000,
 	particleLife: 2.0,
 	particleSpeed: 100.0,
-	particleSize: 10.0,
-	particleDimensions: { x: 100, y: 100 },
+	particleSize: 50.0,
+	particleDimensions: { x: 32, y: 32 },
 	fpsLimit: 60,
 	emitterPosition: { x: 0.5, y: 0.5 },
 	emitterSize: { x: 0, y: 0 },
@@ -21,9 +21,10 @@ export const DEFAULT_CONFIG = {
 	swayAmount: 20,
 	swayFrequency: 2.0,
 	scaleMode: "constant",
+	scaleRandom: { min: 28, max: 60 },
 	scaleGradient: [
-		{ time: 0, value: [255, 255, 255, 0.1] },
-		{ time: 1, value: [255, 255, 255, 0.1] }
+		{ time: 0, value: [255, 255, 255, 0.6] },
+		{ time: 1, value: [255, 255, 255, 0.6] }
 	],
 	colorGradient: [
 		{ time: 0, value: [255, 0, 0, 1] },

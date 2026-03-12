@@ -2,6 +2,7 @@ import { getID } from "./modules/utils";
 import { Pane } from "tweakpane";
 import { GradientPluginBundle } from "tweakpane-plugin-gradient";
 import * as TweakpaneFileImportPlugin from "tweakpane-plugin-file-import";
+import * as EssentialsPlugin from "@tweakpane/plugin-essentials";
 import WebGLitter from "./WebGLitter.js";
 import { exportJSON, exportHTML, uiToLibrary, libraryToUI } from "./modules/exporters";
 import { presets, DEFAULT_CONFIG } from "./modules/presets";
@@ -21,6 +22,7 @@ const PARAMS = {
 		particleSize: DEFAULT_CONFIG.particleSize,
 		scaleMode: DEFAULT_CONFIG.scaleMode || "constant",
 		scaleGradient: null,
+		scaleRandom: DEFAULT_CONFIG.scaleRandom || { min: 50, max: 100 },
 		particleDimensions: { ...DEFAULT_CONFIG.particleDimensions },
 		fpsLimit: DEFAULT_CONFIG.fpsLimit || 60,
 		emitterPosition: { x: (DEFAULT_CONFIG.emitterPosition.x * 2) - 1, y: (DEFAULT_CONFIG.emitterPosition.y * 2) - 1 },
@@ -57,6 +59,7 @@ const pane = new Pane({
 
 pane.registerPlugin(GradientPluginBundle);
 pane.registerPlugin(TweakpaneFileImportPlugin.default || TweakpaneFileImportPlugin);
+pane.registerPlugin(EssentialsPlugin);
 
 let particleSystem; // Shared system instance
 const blades = {}; // Store blade references
@@ -279,6 +282,12 @@ const imageBinding = bindParticle(shapeFolder, "particleImage", {
 });
 imageBinding.hidden = PARAMS.particleSystem.particleShape !== "image";
 
+bindParticle(shapeFolder, "particleDimensions", {
+	x: { min: 1, max: 1000, step: 1 },
+	y: { min: 1, max: 1000, step: 1 },
+	label: "Dimensions (W/H)"
+});
+
 const scaleModeBinding = bindParticle(shapeFolder, "scaleMode", {
 	options: {
 		"Constant": "constant",
@@ -295,9 +304,9 @@ const scaleModeBinding = bindParticle(shapeFolder, "scaleMode", {
 			{ time: 0, value: { r: 255, g: 255, b: 255, a: currentScale } },
 			{ time: 1, value: { r: 255, g: 255, b: 255, a: currentScale } }
 		];
-	} else {
+	} else if (val === "variable") {
 		newPts = [
-			{ time: 0, value: { r: 255, g: 255, b: 255, a: currentScale } },
+			{ time: 0, value: { r: 255, g: 255, b: 255, a: 1 } },
 			{ time: 1, value: { r: 255, g: 255, b: 255, a: 0 } }
 		];
 	}
@@ -335,6 +344,13 @@ const scaleConstantBinding = bindParticle(shapeFolder, "particleSize", { min: 1,
 	});
 });
 
+const scaleRandomBinding = bindParticle(shapeFolder, "scaleRandom", {
+	min: 1, max: 100, step: 1, label: "Scale Range (%)"
+}, (val) => {
+	if (isLoadingPreset) return;
+	particleSystem.updateConfig({ scaleRandom: val });
+});
+
 const scaleGradientBlade = bindGradient(shapeFolder, "scaleGradient", "Scale Gradient", [
 	{ time: 0, value: { r: 255, g: 255, b: 255, a: DEFAULT_CONFIG.particleSize / 100 } },
 	{ time: 1, value: { r: 255, g: 255, b: 255, a: DEFAULT_CONFIG.particleSize / 100 } },
@@ -342,16 +358,13 @@ const scaleGradientBlade = bindGradient(shapeFolder, "scaleGradient", "Scale Gra
 
 function updateScaleVisibility(val) {
 	const isConstant = val === "constant";
+	const isVariable = val === "variable";
 	scaleConstantBinding.hidden = !isConstant;
-	blades.scaleGradient.hidden = isConstant;
+	scaleRandomBinding.hidden = !isVariable;
+	blades.scaleGradient.hidden = !isVariable;
 }
 updateScaleVisibility(PARAMS.particleSystem.scaleMode);
 
-bindParticle(shapeFolder, "particleDimensions", {
-	x: { min: 1, max: 1000, step: 1 },
-	y: { min: 1, max: 1000, step: 1 },
-	label: "Dimensions (W/H)"
-});
 
 
 

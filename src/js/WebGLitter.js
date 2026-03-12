@@ -246,16 +246,20 @@ class WebGLitter {
 		precision mediump float;
 
 		layout(location = 0) in vec2 a_position;
-		layout(location = 1) in float a_normalizedAge;
+		layout(location = 1) in vec2 a_ageAndScale;
 
 		uniform vec2 u_rcpResolution;
 		uniform float u_size;
+		uniform float u_scaleMode; // 0=constant, 1=variable, 2=random
 		uniform sampler2D u_gradientTexture;
 		uniform sampler2D u_scaleTexture;
 
 		out lowp vec4 v_color;
 
 		void main() {
+			float a_normalizedAge = a_ageAndScale.x;
+			float a_baseScale = a_ageAndScale.y;
+
 			if (a_normalizedAge > 1.0) {
 				gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
 				return;
@@ -265,7 +269,7 @@ class WebGLitter {
 			
 			gl_Position = vec4(clipSpace, 0.0, 1.0);
 			
-			float scale = texture(u_scaleTexture, vec2(a_normalizedAge, 0.5)).a;
+			float scale = texture(u_scaleTexture, vec2(a_normalizedAge, 0.5)).a * a_baseScale;
 			gl_PointSize = u_size * scale;
 			
 			v_color = texture(u_gradientTexture, vec2(a_normalizedAge, 0.5));
@@ -349,6 +353,7 @@ class WebGLitter {
 		this.uniforms.render = {
 			rcpResolution: gl.getUniformLocation(this.renderProgram, "u_rcpResolution"),
 			size: gl.getUniformLocation(this.renderProgram, "u_size"),
+			scaleMode: gl.getUniformLocation(this.renderProgram, "u_scaleMode"),
 			shapeScale: gl.getUniformLocation(this.renderProgram, "u_shapeScale"),
 			gradientTexture: gl.getUniformLocation(this.renderProgram, "u_gradientTexture"),
 			scaleTexture: gl.getUniformLocation(this.renderProgram, "u_scaleTexture"),
@@ -396,8 +401,8 @@ class WebGLitter {
 
 		// CPU tracks Physics: x, y, vx, vy, age, life, phase
 		this.cpuData = new Float32Array(max * 7);
-		// GPU only gets layout: x, y, normalizedAge
-		this.gpuData = new Float32Array(max * 3);
+		// GPU gets layout: x, y, normalizedAge, baseScale
+		this.gpuData = new Float32Array(max * 4);
 
 		for (let i = 0; i < max; i++) {
 			this.cpuData[i * 7 + 4] = 9999; // Force instant spawn
@@ -412,12 +417,12 @@ class WebGLitter {
 		gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
 		gl.bufferData(gl.ARRAY_BUFFER, this.gpuData.byteLength, gl.DYNAMIC_DRAW);
 
-		const stride = 3 * 4;
+		const stride = 4 * 4;
 		gl.enableVertexAttribArray(0); // Pos
 		gl.vertexAttribPointer(0, 2, gl.FLOAT, false, stride, 0);
 
-		gl.enableVertexAttribArray(1); // Normalized Age
-		gl.vertexAttribPointer(1, 1, gl.FLOAT, false, stride, 2 * 4);
+		gl.enableVertexAttribArray(1); // Normalized Age & Base Scale
+		gl.vertexAttribPointer(1, 2, gl.FLOAT, false, stride, 2 * 4);
 
 		gl.bindVertexArray(null);
 
@@ -435,118 +440,76 @@ class WebGLitter {
 			}
 		}
 
-		// Use real elapsed time so physics speed is independent of FPS limit / display rate
 		const dt = Math.min((now - this.lastTime) / 1000.0, 0.1);
 		this.lastTime = now;
 
 		if (this.emitting && (this.config.interactionType !== "follow" || this.pointer.active)) {
 			this.spawnRemainder += this.config.emissionRate * dt;
 		}
-		
+
 		const count = Math.floor(this.activeParticles);
+		if (count < 0) {
+			this.animationFrameId = requestAnimationFrame(this.render);
+			return;
+		}
 
-		if (count >= 0) {
-			// CPU Optimizations: Pre-calc maths to keep loop entirely raw arithmetic
-			const cpu = this.cpuData;
-			const gpu = this.gpuData;
-			const follow = this.config.interactionType === "follow" && this.pointer.active;
-			const ex = follow ? this.pointer.normalizedX * this.canvas.width : this.config.emitterPosition.x * this.canvas.width;
-			const ey = follow ? this.pointer.normalizedY * this.canvas.height : this.config.emitterPosition.y * this.canvas.height;
-			const ew = this.config.emitterSize.x * this.canvas.width;
-			const eh = this.config.emitterSize.y * this.canvas.height;
-			
-			const eAngle = this.config.emitterAngle * this.degToRad;
-			const eSpread = this.config.emitterSpread * this.degToRad;
-			const bSpeed = this.config.particleSpeed;
-			const bLife = this.config.particleLife;
+		const cpu = this.cpuData;
+		const gpu = this.gpuData;
+		const follow = this.config.interactionType === "follow" && this.pointer.active;
+		const ex = follow ? this.pointer.normalizedX * this.canvas.width : this.config.emitterPosition.x * this.canvas.width;
+		const ey = follow ? this.pointer.normalizedY * this.canvas.height : this.config.emitterPosition.y * this.canvas.height;
+		const ew = this.config.emitterSize.x * this.canvas.width;
+		const eh = this.config.emitterSize.y * this.canvas.height;
 
-			const px = this.pointer.normalizedX * this.canvas.width;
-			const py = this.pointer.normalizedY * this.canvas.height;
-			const repel = this.config.interactionType === "repel" && this.pointer.active;
-			const rRadius = this.config.repelRadius;
-			const rStrength = this.config.repelStrength;
-			const gravX = this.config.gravity.x;
-			const gravY = this.config.gravity.y;
+		const eAngle = this.config.emitterAngle * this.degToRad;
+		const eSpread = this.config.emitterSpread * this.degToRad;
+		const bSpeed = this.config.particleSpeed;
+		const bLife = this.config.particleLife;
 
-			const swayType = this.config.swayType;
-			const swayAmount = this.config.swayAmount;
-			const swayFreq = this.config.swayFrequency;
+		const px = this.pointer.normalizedX * this.canvas.width;
+		const py = this.pointer.normalizedY * this.canvas.height;
+		const repel = this.config.interactionType === "repel" && this.pointer.active;
+		const rRadius = this.config.repelRadius;
+		const rStrength = this.config.repelStrength;
+		const gravX = this.config.gravity.x;
+		const gravY = this.config.gravity.y;
 
-			// Blisteringly fast typed array JS calculation loop
-			for (let i = 0; i < count; i++) {
-				let i7 = i * 7;
-				let i3 = i * 3;
+		const swayType = this.config.swayType;
+		const swayAmount = this.config.swayAmount;
+		const swayFreq = this.config.swayFrequency;
 
-				let age = cpu[i7 + 4] + dt;
-				let life = cpu[i7 + 5];
+		const sRandom = this.config.scaleRandom || { min: 50, max: 100 };
+		const sMin = sRandom.min / 100.0;
+		const sMax = sRandom.max / 100.0;
+		const isVariableScale = this.config.scaleMode === "variable";
 
-				if (age >= life) {
-					if (this.spawnRemainder >= 1.0) {
-						this.spawnRemainder -= 1.0;
-						cpu[i7] = ex + (Math.random() - 0.5) * ew;
-						cpu[i7 + 1] = ey + (Math.random() - 0.5) * eh;
+		for (let i = 0; i < count; i++) {
+			let i7 = i * 7;
+			let i4 = i * 4;
 
-						let angle = eAngle + (Math.random() - 0.5) * eSpread;
-						let speed = bSpeed + Math.random() * bSpeed * 0.5;
+			let age = cpu[i7 + 4] + dt;
+			let life = cpu[i7 + 5];
 
-						cpu[i7 + 2] = Math.cos(angle) * speed;
-						cpu[i7 + 3] = Math.sin(angle) * speed;
-
-						age = 0.0;
-						life = bLife + Math.random() * bLife * 0.5;
-						cpu[i7 + 5] = life;
-						cpu[i7 + 6] = Math.random() * Math.PI * 2;
-					} else {
-						// Keep it dead
-						age = life + 0.1;
-					}
-				} else {
-					if (repel) {
-						let dx = cpu[i7] - px;
-						let dy = cpu[i7 + 1] - py;
-						let distSq = dx * dx + dy * dy;
-						if (distSq < rRadius * rRadius && distSq > 0) {
-							let dist = Math.sqrt(distSq);
-							let force = (1.0 - dist / rRadius) * rStrength * dt;
-							cpu[i7 + 2] += (dx / dist) * force;
-							cpu[i7 + 3] += (dy / dist) * force;
-						}
-					}
-
-					cpu[i7 + 2] += gravX * dt;
-					cpu[i7 + 3] += gravY * dt;
-
-					cpu[i7] += cpu[i7 + 2] * dt;
-					cpu[i7 + 1] += cpu[i7 + 3] * dt;
-				}
-				cpu[i7 + 4] = age;
-
-				let sx = 0, sy = 0;
-				if (swayAmount > 0) {
-					const phase = cpu[i7 + 6];
-					const t = age * swayFreq + phase;
-					if (swayType === "sine") {
-						sx = Math.sin(t) * swayAmount;
-					} else if (swayType === "zigzag") {
-						sx = (Math.abs((t / Math.PI % 2) - 1) * 2 - 1) * swayAmount;
-					} else if (swayType === "circular") {
-						sx = Math.sin(t) * swayAmount;
-						sy = Math.cos(t) * swayAmount;
+			if (age < life) {
+				if (repel) {
+					let dx = cpu[i7] - px;
+					let dy = cpu[i7 + 1] - py;
+					let distSq = dx * dx + dy * dy;
+					if (distSq < rRadius * rRadius && distSq > 0) {
+						let dist = Math.sqrt(distSq);
+						let force = (1.0 - dist / rRadius) * rStrength * dt;
+						cpu[i7 + 2] += (dx / dist) * force;
+						cpu[i7 + 3] += (dy / dist) * force;
 					}
 				}
 
-				gpu[i3] = cpu[i7] + sx;
-				gpu[i3 + 1] = cpu[i7 + 1] + sy;
-				gpu[i3 + 2] = age / life;
-			}
+				cpu[i7 + 2] += gravX * dt;
+				cpu[i7 + 3] += gravY * dt;
 
-			// Grow pool if we still have budget and haven't hit max
-			while (this.spawnRemainder >= 1.0 && this.activeParticles < this.config.maxParticles) {
+				cpu[i7] += cpu[i7 + 2] * dt;
+				cpu[i7 + 1] += cpu[i7 + 3] * dt;
+			} else if (this.spawnRemainder >= 1.0) {
 				this.spawnRemainder -= 1.0;
-				let i = Math.floor(this.activeParticles);
-				let i7 = i * 7;
-				let i3 = i * 3;
-
 				cpu[i7] = ex + (Math.random() - 0.5) * ew;
 				cpu[i7 + 1] = ey + (Math.random() - 0.5) * eh;
 
@@ -556,56 +519,106 @@ class WebGLitter {
 				cpu[i7 + 2] = Math.cos(angle) * speed;
 				cpu[i7 + 3] = Math.sin(angle) * speed;
 
-				cpu[i7 + 4] = 0.0; // Age
-				let life = bLife + Math.random() * bLife * 0.5;
+				age = 0.0;
+				life = bLife + Math.random() * bLife * 0.5;
 				cpu[i7 + 5] = life;
 				cpu[i7 + 6] = Math.random() * Math.PI * 2;
 
-				gpu[i3] = cpu[i7];
-				gpu[i3 + 1] = cpu[i7 + 1];
-				gpu[i3 + 2] = 0.0;
-
-				this.activeParticles++;
+				if (isVariableScale) {
+					gpu[i4 + 3] = sMin + Math.random() * (sMax - sMin);
+				} else {
+					gpu[i4 + 3] = 1.0;
+				}
+			} else {
+				age = life + 0.1;
 			}
 
-			// Subload exact bytes. (If 1 particle, this pushes 12 bytes instead of the full buffer)
-			gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-			gl.bufferSubData(gl.ARRAY_BUFFER, 0, gpu, 0, Math.floor(this.activeParticles) * 3);
+			cpu[i7 + 4] = age;
 
-			gl.viewport(0, 0, this.canvas.width, this.canvas.height);
-			gl.clearColor(0, 0, 0, 0);
-			gl.clear(gl.COLOR_BUFFER_BIT);
-
-			const actualW = this.config.particleDimensions.x;
-			const actualH = this.config.particleDimensions.y;
-			const maxDim = Math.max(actualW, actualH, 0.001);
-
-			gl.useProgram(this.renderProgram);
-			gl.uniform2f(this.uniforms.render.rcpResolution, 2.0 / this.canvas.width, 2.0 / this.canvas.height);
-			gl.uniform1f(this.uniforms.render.size, maxDim);
-			gl.uniform2f(this.uniforms.render.shapeScale, actualW / maxDim, actualH / maxDim);
-
-			if (this.gradientTexture) {
-				gl.activeTexture(gl.TEXTURE0);
-				gl.bindTexture(gl.TEXTURE_2D, this.gradientTexture);
-				gl.uniform1i(this.uniforms.render.gradientTexture, 0);
+			let sx = 0, sy = 0;
+			if (swayAmount > 0) {
+				const phase = cpu[i7 + 6];
+				const t = age * swayFreq + phase;
+				if (swayType === "sine") {
+					sx = Math.sin(t) * swayAmount;
+				} else if (swayType === "zigzag") {
+					sx = (Math.abs((t / Math.PI % 2) - 1) * 2 - 1) * swayAmount;
+				} else if (swayType === "circular") {
+					sx = Math.sin(t) * swayAmount;
+					sy = Math.cos(t) * swayAmount;
+				}
 			}
 
-			if (this.scaleTexture) {
-				gl.activeTexture(gl.TEXTURE2);
-				gl.bindTexture(gl.TEXTURE_2D, this.scaleTexture);
-				gl.uniform1i(this.uniforms.render.scaleTexture, 2);
-			}
-
-			if (this.config.particleShape === "image" && this.particleTexture) {
-				gl.activeTexture(gl.TEXTURE1);
-				gl.bindTexture(gl.TEXTURE_2D, this.particleTexture);
-				gl.uniform1i(this.uniforms.render.particleTexture, 1);
-			}
-
-			gl.bindVertexArray(this.vao);
-			gl.drawArrays(gl.POINTS, 0, Math.floor(this.activeParticles));
+			gpu[i4] = cpu[i7] + sx;
+			gpu[i4 + 1] = cpu[i7 + 1] + sy;
+			gpu[i4 + 2] = age / life;
 		}
+
+		while (this.spawnRemainder >= 1.0 && this.activeParticles < this.config.maxParticles) {
+			this.spawnRemainder -= 1.0;
+			let i = Math.floor(this.activeParticles);
+			let i7 = i * 7;
+			let i4 = i * 4;
+
+			cpu[i7] = ex + (Math.random() - 0.5) * ew;
+			cpu[i7 + 1] = ey + (Math.random() - 0.5) * eh;
+
+			let angle = eAngle + (Math.random() - 0.5) * eSpread;
+			let speed = bSpeed + Math.random() * bSpeed * 0.5;
+
+			cpu[i7 + 2] = Math.cos(angle) * speed;
+			cpu[i7 + 3] = Math.sin(angle) * speed;
+
+			cpu[i7 + 4] = 0.0;
+			let life = bLife + Math.random() * bLife * 0.5;
+			cpu[i7 + 5] = life;
+			cpu[i7 + 6] = Math.random() * Math.PI * 2;
+
+			gpu[i4] = cpu[i7];
+			gpu[i4 + 1] = cpu[i7 + 1];
+			gpu[i4 + 2] = 0.0;
+			gpu[i4 + 3] = isVariableScale ? (sMin + Math.random() * (sMax - sMin)) : 1.0;
+
+			this.activeParticles++;
+		}
+
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
+		gl.bufferSubData(gl.ARRAY_BUFFER, 0, gpu, 0, Math.floor(this.activeParticles) * 4);
+
+		gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+		gl.clearColor(0, 0, 0, 0);
+		gl.clear(gl.COLOR_BUFFER_BIT);
+
+		const actualW = this.config.particleDimensions.x;
+		const actualH = this.config.particleDimensions.y;
+		const maxDim = Math.max(actualW, actualH, 0.001);
+
+		gl.useProgram(this.renderProgram);
+		gl.uniform2f(this.uniforms.render.rcpResolution, 2.0 / this.canvas.width, 2.0 / this.canvas.height);
+		gl.uniform1f(this.uniforms.render.size, maxDim);
+		gl.uniform1f(this.uniforms.render.scaleMode, isVariableScale ? 1.0 : 0.0);
+		gl.uniform2f(this.uniforms.render.shapeScale, actualW / maxDim, actualH / maxDim);
+
+		if (this.gradientTexture) {
+			gl.activeTexture(gl.TEXTURE0);
+			gl.bindTexture(gl.TEXTURE_2D, this.gradientTexture);
+			gl.uniform1i(this.uniforms.render.gradientTexture, 0);
+		}
+
+		if (this.scaleTexture) {
+			gl.activeTexture(gl.TEXTURE2);
+			gl.bindTexture(gl.TEXTURE_2D, this.scaleTexture);
+			gl.uniform1i(this.uniforms.render.scaleTexture, 2);
+		}
+
+		if (this.config.particleShape === "image" && this.particleTexture) {
+			gl.activeTexture(gl.TEXTURE1);
+			gl.bindTexture(gl.TEXTURE_2D, this.particleTexture);
+			gl.uniform1i(this.uniforms.render.particleTexture, 1);
+		}
+
+		gl.bindVertexArray(this.vao);
+		gl.drawArrays(gl.POINTS, 0, Math.floor(this.activeParticles));
 
 		this.animationFrameId = requestAnimationFrame(this.render);
 	}
