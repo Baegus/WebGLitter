@@ -10,6 +10,29 @@ const mapColorToUI = (points) => points.map(p => ({
 	value: Array.isArray(p.value) ? { r: p.value[0], g: p.value[1], b: p.value[2], a: p.value[3] } : { ...p.value }
 }));
 
+const formatJSON = (obj) => {
+	const replacer = (key, value) => {
+		if (typeof value === "number") {
+			return Number(value.toFixed(2));
+		}
+		return value;
+	};
+
+	// Make sure colors are in a single line
+	let output = JSON.stringify(obj, replacer, "\t").replace(
+		/\[[\s\d.,-]+\]/g,
+		(match) => match.replace(/\s+/g, " ").replace(/\[ /g, "[").replace(/ \]/g, "]")
+	);
+
+	// Make sure gradient stops are in a single line
+	output = output.replace(
+		/\{\s*"time":\s*([0-9.]+),\s*"value":\s*(\[[^\]]+\])\s*\}/g,
+		'{ "time": $1, "value": $2 }'
+	);
+
+	return output;
+};
+
 export const uiToLibrary = (uiParams) => {
 	const config = JSON.parse(JSON.stringify(uiParams.particleSystem, (key, value) => {
 		if (value instanceof File) return "[File Object]";
@@ -102,7 +125,7 @@ import WebGLitter from "./WebGLitter.js";
 // Config — edit any property here before or after instantiation
 // ---------------------------------------------------------------------------
 const config =
-${JSON.stringify(config, null, "\t")}
+${formatJSON(config)}
 
 // ---------------------------------------------------------------------------
 // Setup
@@ -186,6 +209,6 @@ export const exportJSON = (PARAMS) => {
 		canvas: PARAMS.canvas,
 		particleSystem: uiToLibrary(PARAMS),
 	};
-	const json = JSON.stringify(data, null, "\t");
+	const json = formatJSON(data);
 	triggerDownload("webglitter-config.json", json, "application/json");
 }

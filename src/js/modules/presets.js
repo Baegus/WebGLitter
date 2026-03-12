@@ -45,15 +45,13 @@ export const presets = {
 		"particleSize": 66,
 		"scaleMode": "variable",
 		"scaleGradient": [
-			{
-				"time": 0,
-				"value": [255, 255, 255, 0.66]
-			},
-			{
-				"time": 1,
-				"value": [255, 255, 255, 0]
-			}
+			{ "time": 0, "value": [255, 255, 255, 0.66] },
+			{ "time": 1, "value": [255, 255, 255, 0] }
 		],
+		"scaleRandom": {
+			"min": 28,
+			"max": 60
+		},
 		"particleDimensions": {
 			"x": 100,
 			"y": 100
@@ -61,7 +59,7 @@ export const presets = {
 		"fpsLimit": 60,
 		"emitterPosition": {
 			"x": 0.5,
-			"y": 0.865
+			"y": 0.86
 		},
 		"emitterSize": {
 			"x": 0.07,
@@ -72,32 +70,14 @@ export const presets = {
 		"particleShape": "softCircle",
 		"particleImage": "",
 		"colorGradient": [
-			{
-				"time": 0,
-				"value": [0, 81.7, 255, 1]
-			},
-			{
-				"time": 0.2313,
-				"value": [210, 163, 63.4, 1]
-			},
-			{
-				"time": 0.37,
-				"value": [204, 85.4, 64, 1]
-			},
-			{
-				"time": 0.7244,
-				"value": [57.375, 57.375, 57.375, 1]
-			}
+			{ "time": 0, "value": [0, 81.7, 255, 1] },
+			{ "time": 0.23, "value": [210, 163, 63.4, 1] },
+			{ "time": 0.37, "value": [204, 85.4, 64, 1] },
+			{ "time": 0.72, "value": [57.38, 57.38, 57.38, 1] }
 		],
 		"opacityGradient": [
-			{
-				"time": 0,
-				"value": [255, 255, 255, 1]
-			},
-			{
-				"time": 1,
-				"value": [255, 255, 255, 0]
-			}
+			{ "time": 0, "value": [255, 255, 255, 1] },
+			{ "time": 1, "value": [255, 255, 255, 0] }
 		],
 		"interactionType": "follow",
 		"repelRadius": 100,
