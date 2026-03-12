@@ -44,6 +44,10 @@ const PARAMS = {
 		swayType: DEFAULT_CONFIG.swayType,
 		swayAmount: DEFAULT_CONFIG.swayAmount,
 		swayFrequency: DEFAULT_CONFIG.swayFrequency,
+		rotationMode: DEFAULT_CONFIG.rotationMode,
+		rotationConstant: DEFAULT_CONFIG.rotationConstant,
+		rotationRandom: { ...DEFAULT_CONFIG.rotationRandom },
+		rotationGradient: null,
 	},
 };
 
@@ -70,7 +74,7 @@ const mapToLibrary = (key, val) => {
 	if (key === "emitterPosition") {
 		return { x: (val.x + 1) / 2, y: (val.y + 1) / 2 };
 	}
-	if (key === "colorGradient" || key === "opacityGradient" || key === "scaleGradient") {
+	if (key === "colorGradient" || key === "opacityGradient" || key === "scaleGradient" || key === "rotationGradient") {
 		return val.map(p => ({
 			time: p.time,
 			value: [p.value.r, p.value.g, p.value.b, p.value.a]
@@ -185,7 +189,7 @@ presetBlade.on("change", (ev) => {
 	const defaultsUI = libraryToUI(DEFAULT_CONFIG);
 	const applyData = (data) => {
 		Object.keys(data).forEach(key => {
-			if (key === "colorGradient" || key === "opacityGradient" || key === "scaleGradient") {
+			if (key === "colorGradient" || key === "opacityGradient" || key === "scaleGradient" || key === "rotationGradient") {
 				return;
 			}
 			if (typeof data[key] === "object" && data[key] !== null && PARAMS.particleSystem[key]) {
@@ -219,6 +223,7 @@ presetBlade.on("change", (ev) => {
 	updateGradientBlade("colorGradient", uiData.colorGradient);
 	updateGradientBlade("opacityGradient", uiData.opacityGradient);
 	updateGradientBlade("scaleGradient", uiData.scaleGradient);
+	updateGradientBlade("rotationGradient", uiData.rotationGradient);
 
 	// Sync direction and angle
 	if (preset.emitterDirection) {
@@ -236,6 +241,7 @@ presetBlade.on("change", (ev) => {
 	updateScaleVisibility(PARAMS.particleSystem.scaleMode);
 	updateSwayVisibility(PARAMS.particleSystem.swayType);
 	updateInteractionVisibility(PARAMS.particleSystem.interactionType);
+	updateRotationVisibility(PARAMS.particleSystem.rotationMode);
 	imageBinding.hidden = PARAMS.particleSystem.particleShape !== "image";
 
 	refreshPreview();
@@ -382,6 +388,86 @@ function updateScaleVisibility(val) {
 updateScaleVisibility(PARAMS.particleSystem.scaleMode);
 
 
+// --- Rotation ---
+const rotationModeBinding = bindParticle(shapeFolder, "rotationMode", {
+	options: {
+		"Constant": "constant",
+		"Variable": "variable",
+	},
+	label: "Rotation Mode"
+}, (val) => {
+	if (isLoadingPreset) return;
+
+	const currentDeg = PARAMS.particleSystem.rotationConstant;
+	const currentRad = currentDeg * (Math.PI / 180);
+	let newPts = [];
+	if (val === "constant") {
+		newPts = [
+			{ time: 0, value: { r: 255, g: 255, b: 255, a: currentRad / (Math.PI * 2) } },
+			{ time: 1, value: { r: 255, g: 255, b: 255, a: currentRad / (Math.PI * 2) } }
+		];
+	} else if (val === "variable") {
+		newPts = [
+			{ time: 0, value: { r: 255, g: 255, b: 255, a: 0 } },
+			{ time: 1, value: { r: 255, g: 255, b: 255, a: 1 } }
+		];
+	}
+
+	const blade = blades.rotationGradient;
+	if (blade) {
+		PARAMS.particleSystem.rotationGradient = updateGradientBladeValue(blade, newPts, debugging);
+	}
+
+	particleSystem.updateConfig({
+		rotationMode: val,
+		rotationGradient: mapToLibrary("rotationGradient", PARAMS.particleSystem.rotationGradient)
+	});
+	updateRotationVisibility(val);
+});
+
+const rotationConstantBinding = bindParticle(shapeFolder, "rotationConstant", {
+	min: 0, max: 360, step: 1, label: "Rotation (°)"
+}, (val) => {
+	if (isLoadingPreset) return;
+
+	const rad = val * (Math.PI / 180);
+	const norm = rad / (Math.PI * 2);
+	const pts = [
+		{ time: 0, value: { r: 255, g: 255, b: 255, a: norm } },
+		{ time: 1, value: { r: 255, g: 255, b: 255, a: norm } }
+	];
+
+	const blade = blades.rotationGradient;
+	if (blade) {
+		PARAMS.particleSystem.rotationGradient = updateGradientBladeValue(blade, pts, debugging);
+	}
+
+	particleSystem.updateConfig({
+		rotationConstant: val,
+		rotationGradient: mapToLibrary("rotationGradient", PARAMS.particleSystem.rotationGradient)
+	});
+});
+
+const rotationRandomBinding = bindParticle(shapeFolder, "rotationRandom", {
+	min: 0, max: 360, step: 1, label: "Rotation Range (°)"
+}, (val) => {
+	if (isLoadingPreset) return;
+	particleSystem.updateConfig({ rotationRandom: val });
+});
+
+const rotationGradientBlade = bindGradient(shapeFolder, "rotationGradient", "Rotation Gradient", [
+	{ time: 0, value: { r: 255, g: 255, b: 255, a: DEFAULT_CONFIG.rotationConstant / 360 } },
+	{ time: 1, value: { r: 255, g: 255, b: 255, a: DEFAULT_CONFIG.rotationConstant / 360 } },
+], false, true);
+
+function updateRotationVisibility(val) {
+	const isConstant = val === "constant";
+	const isVariable = val === "variable";
+	rotationConstantBinding.hidden = !isConstant;
+	rotationRandomBinding.hidden = !isVariable;
+	blades.rotationGradient.hidden = !isVariable;
+}
+updateRotationVisibility(PARAMS.particleSystem.rotationMode);
 
 
 const lifetimeFolder = particlesFolder.addFolder({ title: "Lifetime & Motion" });

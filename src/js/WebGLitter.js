@@ -50,6 +50,7 @@ class WebGLitter {
 		if (this.config.colorGradient || this.config.opacityGradient || this.config.scaleGradient) {
 			this.updateGradientTexture();
 		}
+		this.updateRotationTexture();
 		if (this.config.particleImage || this.config.particleShape === "image") {
 			this.updateParticleImage();
 		}
@@ -105,6 +106,9 @@ class WebGLitter {
 		if (newConfig.colorGradient !== undefined || newConfig.opacityGradient !== undefined || newConfig.scaleGradient !== undefined) {
 			this.updateGradientTexture();
 		}
+		if (newConfig.rotationGradient !== undefined) {
+			this.updateRotationTexture();
+		}
 		if (newConfig.particleImage !== undefined) {
 			this.updateParticleImage();
 		}
@@ -113,9 +117,9 @@ class WebGLitter {
 	restart() {
 		const max = this.config.maxParticles;
 		for (let i = 0; i < max; i++) {
-			this.cpuData[i * 7 + 4] = 9999; // Force instant spawn
-			this.cpuData[i * 7 + 5] = 1;
-			this.cpuData[i * 7 + 6] = Math.random() * Math.PI * 2;
+			this.cpuData[i * 8 + 4] = 9999; // Force instant spawn
+			this.cpuData[i * 8 + 5] = 1;
+			this.cpuData[i * 8 + 6] = Math.random() * Math.PI * 2;
 		}
 		this.activeParticles = 0;
 		this.lastTime = performance.now();
@@ -187,6 +191,52 @@ class WebGLitter {
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 	}
 
+	updateRotationTexture() {
+		const gl = this.gl;
+		const width = 256;
+
+		const sampleGradient = (stops, t) => {
+			if (t <= stops[0].time) return stops[0].value;
+			const last = stops[stops.length - 1];
+			if (t >= last.time) return last.value;
+			let lo = 0;
+			while (lo < stops.length - 2 && stops[lo + 1].time <= t) lo++;
+			const a = stops[lo], b = stops[lo + 1];
+			const f = (t - a.time) / (b.time - a.time);
+			return [
+				a.value[0] + f * (b.value[0] - a.value[0]),
+				a.value[1] + f * (b.value[1] - a.value[1]),
+				a.value[2] + f * (b.value[2] - a.value[2]),
+				a.value[3] + f * (b.value[3] - a.value[3]),
+			];
+		};
+
+		const defaultFlat = [{ time: 0, value: [255, 255, 255, 0] }, { time: 1, value: [255, 255, 255, 0] }];
+		const rotStops = (this.config.rotationGradient && this.config.rotationGradient.length > 0)
+			? [...this.config.rotationGradient].sort((a, b) => a.time - b.time)
+			: defaultFlat;
+
+		const data = new Uint8Array(width * 4);
+		const inv = 1 / (width - 1);
+		for (let i = 0; i < width; i++) {
+			const t = i * inv;
+			const s = sampleGradient(rotStops, t);
+			data[i * 4 + 0] = 255;
+			data[i * 4 + 1] = 255;
+			data[i * 4 + 2] = 255;
+			// alpha channel encodes normalized rotation (0..1 maps to 0..2π)
+			data[i * 4 + 3] = (s[3] * 255 + 0.5) | 0;
+		}
+
+		if (!this.rotationTexture) this.rotationTexture = gl.createTexture();
+		gl.bindTexture(gl.TEXTURE_2D, this.rotationTexture);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+	}
+
 	createFallbackParticleTexture() {
 		// A simple soft circle texture
 		const gl = this.gl;
@@ -247,14 +297,17 @@ class WebGLitter {
 
 		layout(location = 0) in vec2 a_position;
 		layout(location = 1) in vec2 a_ageAndScale;
+		layout(location = 2) in float a_baseRotation;
 
 		uniform vec2 u_rcpResolution;
 		uniform float u_size;
 		uniform float u_scaleMode; // 0=constant, 1=variable, 2=random
 		uniform sampler2D u_gradientTexture;
 		uniform sampler2D u_scaleTexture;
+		uniform sampler2D u_rotationTexture;
 
 		out lowp vec4 v_color;
+		out vec2 v_cosSin;
 
 		void main() {
 			float a_normalizedAge = a_ageAndScale.x;
@@ -273,6 +326,12 @@ class WebGLitter {
 			gl_PointSize = u_size * scale;
 			
 			v_color = texture(u_gradientTexture, vec2(a_normalizedAge, 0.5));
+
+			// Rotation: gradient gives a normalized 0..1 value (= 0..2π full turn)
+			// Add per-particle random base rotation offset
+			float rotNorm = texture(u_rotationTexture, vec2(a_normalizedAge, 0.5)).a;
+			float rot = rotNorm * 6.28318530718 + a_baseRotation;
+			v_cosSin = vec2(cos(rot), sin(rot));
 		}
 		`;
 
@@ -315,13 +374,21 @@ class WebGLitter {
 		precision lowp float;
 
 		in vec4 v_color;
+		in vec2 v_cosSin;
 		out vec4 outColor;
 
 		uniform vec2 u_shapeScale;
 		${useImage ? "uniform sampler2D u_particleTexture;" : ""}
 
 		void main() {
-			vec2 coord = (gl_PointCoord - 0.5) / u_shapeScale;
+			vec2 centered = gl_PointCoord - 0.5;
+
+			// Apply rotation BEFORE scaling to preserve aspect ratio
+			vec2 rotated = vec2(v_cosSin.x * centered.x - v_cosSin.y * centered.y, v_cosSin.y * centered.x + v_cosSin.x * centered.y);
+			
+			// Apply scale to local bounds
+			vec2 coord = rotated / u_shapeScale;
+
 			if (abs(coord.x) > 0.5 || abs(coord.y) > 0.5) discard;
 			
 			vec4 color = v_color;
@@ -357,6 +424,7 @@ class WebGLitter {
 			shapeScale: gl.getUniformLocation(this.renderProgram, "u_shapeScale"),
 			gradientTexture: gl.getUniformLocation(this.renderProgram, "u_gradientTexture"),
 			scaleTexture: gl.getUniformLocation(this.renderProgram, "u_scaleTexture"),
+			rotationTexture: gl.getUniformLocation(this.renderProgram, "u_rotationTexture"),
 			...(useImage ? { particleTexture: gl.getUniformLocation(this.renderProgram, "u_particleTexture") } : {})
 		};
 	}
@@ -399,15 +467,16 @@ class WebGLitter {
 		const gl = this.gl;
 		const max = this.config.maxParticles;
 
-		// CPU tracks Physics: x, y, vx, vy, age, life, phase
-		this.cpuData = new Float32Array(max * 7);
-		// GPU gets layout: x, y, normalizedAge, baseScale
-		this.gpuData = new Float32Array(max * 4);
+		// CPU tracks Physics: x, y, vx, vy, age, life, phase, baseRotation
+		this.cpuData = new Float32Array(max * 8);
+		// GPU gets layout: x, y, normalizedAge, baseScale, rotation
+		this.gpuData = new Float32Array(max * 5);
 
 		for (let i = 0; i < max; i++) {
-			this.cpuData[i * 7 + 4] = 9999; // Force instant spawn
-			this.cpuData[i * 7 + 5] = 1;
-			this.cpuData[i * 7 + 6] = Math.random() * Math.PI * 2;
+			this.cpuData[i * 8 + 4] = 9999; // Force instant spawn
+			this.cpuData[i * 8 + 5] = 1;
+			this.cpuData[i * 8 + 6] = Math.random() * Math.PI * 2;
+			this.cpuData[i * 8 + 7] = 0;
 		}
 
 		this.buffer = gl.createBuffer();
@@ -417,12 +486,15 @@ class WebGLitter {
 		gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
 		gl.bufferData(gl.ARRAY_BUFFER, this.gpuData.byteLength, gl.DYNAMIC_DRAW);
 
-		const stride = 4 * 4;
+		const stride = 5 * 4;
 		gl.enableVertexAttribArray(0); // Pos
 		gl.vertexAttribPointer(0, 2, gl.FLOAT, false, stride, 0);
 
 		gl.enableVertexAttribArray(1); // Normalized Age & Base Scale
 		gl.vertexAttribPointer(1, 2, gl.FLOAT, false, stride, 2 * 4);
+
+		gl.enableVertexAttribArray(2); // Rotation
+		gl.vertexAttribPointer(2, 1, gl.FLOAT, false, stride, 4 * 4);
 
 		gl.bindVertexArray(null);
 
@@ -483,61 +555,70 @@ class WebGLitter {
 		const sMax = sRandom.max / 100.0;
 		const isVariableScale = this.config.scaleMode === "variable";
 
-		for (let i = 0; i < count; i++) {
-			let i7 = i * 7;
-			let i4 = i * 4;
+		const rRandom = this.config.rotationRandom || { min: 0, max: 360 };
+		const rRotMin = rRandom.min * this.degToRad;
+		const rRotMax = rRandom.max * this.degToRad;
+		const isVariableRot = this.config.rotationMode === "variable";
+		const constRotRad = (this.config.rotationConstant || 0) * this.degToRad;
 
-			let age = cpu[i7 + 4] + dt;
-			let life = cpu[i7 + 5];
+		for (let i = 0; i < count; i++) {
+			let i8 = i * 8;
+			let i5 = i * 5;
+
+			let age = cpu[i8 + 4] + dt;
+			let life = cpu[i8 + 5];
 
 			if (age < life) {
 				if (repel) {
-					let dx = cpu[i7] - px;
-					let dy = cpu[i7 + 1] - py;
+					let dx = cpu[i8] - px;
+					let dy = cpu[i8 + 1] - py;
 					let distSq = dx * dx + dy * dy;
 					if (distSq < rRadius * rRadius && distSq > 0) {
 						let dist = Math.sqrt(distSq);
 						let force = (1.0 - dist / rRadius) * rStrength * dt;
-						cpu[i7 + 2] += (dx / dist) * force;
-						cpu[i7 + 3] += (dy / dist) * force;
+						cpu[i8 + 2] += (dx / dist) * force;
+						cpu[i8 + 3] += (dy / dist) * force;
 					}
 				}
 
-				cpu[i7 + 2] += gravX * dt;
-				cpu[i7 + 3] += gravY * dt;
+				cpu[i8 + 2] += gravX * dt;
+				cpu[i8 + 3] += gravY * dt;
 
-				cpu[i7] += cpu[i7 + 2] * dt;
-				cpu[i7 + 1] += cpu[i7 + 3] * dt;
+				cpu[i8] += cpu[i8 + 2] * dt;
+				cpu[i8 + 1] += cpu[i8 + 3] * dt;
 			} else if (this.spawnRemainder >= 1.0) {
 				this.spawnRemainder -= 1.0;
-				cpu[i7] = ex + (Math.random() - 0.5) * ew;
-				cpu[i7 + 1] = ey + (Math.random() - 0.5) * eh;
+				cpu[i8] = ex + (Math.random() - 0.5) * ew;
+				cpu[i8 + 1] = ey + (Math.random() - 0.5) * eh;
 
 				let angle = eAngle + (Math.random() - 0.5) * eSpread;
 				let speed = bSpeed + Math.random() * bSpeed * 0.5;
 
-				cpu[i7 + 2] = Math.cos(angle) * speed;
-				cpu[i7 + 3] = Math.sin(angle) * speed;
+				cpu[i8 + 2] = Math.cos(angle) * speed;
+				cpu[i8 + 3] = Math.sin(angle) * speed;
 
 				age = 0.0;
 				life = bLife + Math.random() * bLife * 0.5;
-				cpu[i7 + 5] = life;
-				cpu[i7 + 6] = Math.random() * Math.PI * 2;
+				cpu[i8 + 5] = life;
+				cpu[i8 + 6] = Math.random() * Math.PI * 2;
+				cpu[i8 + 7] = isVariableRot
+					? rRotMin + Math.random() * (rRotMax - rRotMin)
+					: constRotRad;
 
 				if (isVariableScale) {
-					gpu[i4 + 3] = sMin + Math.random() * (sMax - sMin);
+					gpu[i5 + 3] = sMin + Math.random() * (sMax - sMin);
 				} else {
-					gpu[i4 + 3] = 1.0;
+					gpu[i5 + 3] = 1.0;
 				}
 			} else {
 				age = life + 0.1;
 			}
 
-			cpu[i7 + 4] = age;
+			cpu[i8 + 4] = age;
 
 			let sx = 0, sy = 0;
 			if (swayAmount > 0) {
-				const phase = cpu[i7 + 6];
+				const phase = cpu[i8 + 6];
 				const t = age * swayFreq + phase;
 				if (swayType === "sine") {
 					sx = Math.sin(t) * swayAmount;
@@ -549,41 +630,46 @@ class WebGLitter {
 				}
 			}
 
-			gpu[i4] = cpu[i7] + sx;
-			gpu[i4 + 1] = cpu[i7 + 1] + sy;
-			gpu[i4 + 2] = age / life;
+			gpu[i5] = cpu[i8] + sx;
+			gpu[i5 + 1] = cpu[i8 + 1] + sy;
+			gpu[i5 + 2] = age / life;
+			gpu[i5 + 4] = cpu[i8 + 7]; // baseRotation
 		}
 
 		while (this.spawnRemainder >= 1.0 && this.activeParticles < this.config.maxParticles) {
 			this.spawnRemainder -= 1.0;
 			let i = Math.floor(this.activeParticles);
-			let i7 = i * 7;
-			let i4 = i * 4;
+			let i8 = i * 8;
+			let i5 = i * 5;
 
-			cpu[i7] = ex + (Math.random() - 0.5) * ew;
-			cpu[i7 + 1] = ey + (Math.random() - 0.5) * eh;
+			cpu[i8] = ex + (Math.random() - 0.5) * ew;
+			cpu[i8 + 1] = ey + (Math.random() - 0.5) * eh;
 
 			let angle = eAngle + (Math.random() - 0.5) * eSpread;
 			let speed = bSpeed + Math.random() * bSpeed * 0.5;
 
-			cpu[i7 + 2] = Math.cos(angle) * speed;
-			cpu[i7 + 3] = Math.sin(angle) * speed;
+			cpu[i8 + 2] = Math.cos(angle) * speed;
+			cpu[i8 + 3] = Math.sin(angle) * speed;
 
-			cpu[i7 + 4] = 0.0;
+			cpu[i8 + 4] = 0.0;
 			let life = bLife + Math.random() * bLife * 0.5;
-			cpu[i7 + 5] = life;
-			cpu[i7 + 6] = Math.random() * Math.PI * 2;
+			cpu[i8 + 5] = life;
+			cpu[i8 + 6] = Math.random() * Math.PI * 2;
+			cpu[i8 + 7] = isVariableRot
+				? rRotMin + Math.random() * (rRotMax - rRotMin)
+				: constRotRad;
 
-			gpu[i4] = cpu[i7];
-			gpu[i4 + 1] = cpu[i7 + 1];
-			gpu[i4 + 2] = 0.0;
-			gpu[i4 + 3] = isVariableScale ? (sMin + Math.random() * (sMax - sMin)) : 1.0;
+			gpu[i5] = cpu[i8];
+			gpu[i5 + 1] = cpu[i8 + 1];
+			gpu[i5 + 2] = 0.0;
+			gpu[i5 + 3] = isVariableScale ? (sMin + Math.random() * (sMax - sMin)) : 1.0;
+			gpu[i5 + 4] = cpu[i8 + 7]; // baseRotation
 
 			this.activeParticles++;
 		}
 
 		gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-		gl.bufferSubData(gl.ARRAY_BUFFER, 0, gpu, 0, Math.floor(this.activeParticles) * 4);
+		gl.bufferSubData(gl.ARRAY_BUFFER, 0, gpu, 0, Math.floor(this.activeParticles) * 5);
 
 		gl.viewport(0, 0, this.canvas.width, this.canvas.height);
 		gl.clearColor(0, 0, 0, 0);
@@ -591,7 +677,7 @@ class WebGLitter {
 
 		const actualW = this.config.particleDimensions.x;
 		const actualH = this.config.particleDimensions.y;
-		const maxDim = Math.max(actualW, actualH, 0.001);
+		const maxDim = Math.max(Math.sqrt(actualW * actualW + actualH * actualH), 0.001);
 
 		gl.useProgram(this.renderProgram);
 		gl.uniform2f(this.uniforms.render.rcpResolution, 2.0 / this.canvas.width, 2.0 / this.canvas.height);
@@ -609,6 +695,12 @@ class WebGLitter {
 			gl.activeTexture(gl.TEXTURE2);
 			gl.bindTexture(gl.TEXTURE_2D, this.scaleTexture);
 			gl.uniform1i(this.uniforms.render.scaleTexture, 2);
+		}
+
+		if (this.rotationTexture) {
+			gl.activeTexture(gl.TEXTURE3);
+			gl.bindTexture(gl.TEXTURE_2D, this.rotationTexture);
+			gl.uniform1i(this.uniforms.render.rotationTexture, 3);
 		}
 
 		if (this.config.particleShape === "image" && this.particleTexture) {
@@ -636,6 +728,7 @@ class WebGLitter {
 		gl.deleteVertexArray(this.vao);
 		if (this.gradientTexture) gl.deleteTexture(this.gradientTexture);
 		if (this.scaleTexture) gl.deleteTexture(this.scaleTexture);
+		if (this.rotationTexture) gl.deleteTexture(this.rotationTexture);
 		if (this.particleTexture) gl.deleteTexture(this.particleTexture);
 	}
 }
