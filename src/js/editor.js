@@ -276,6 +276,22 @@ const imageBinding = bindParticle(shapeFolder, "particleImage", {
 	if (val) {
 		const url = URL.createObjectURL(val);
 		particleSystem.updateConfig({ particleImage: url });
+
+		const img = new Image();
+		img.onload = () => {
+			let w = img.width;
+			let h = img.height;
+			if (w >= 256 || h >= 256) {
+				const scale = Math.min(256 / w, 256 / h);
+				w = Math.max(1, Math.round(w * scale));
+				h = Math.max(1, Math.round(h * scale));
+			}
+			PARAMS.particleSystem.particleDimensions.x = w;
+			PARAMS.particleSystem.particleDimensions.y = h;
+			pane.refresh();
+			particleSystem.updateConfig({ particleDimensions: { x: w, y: h } });
+		};
+		img.src = url;
 	} else {
 		particleSystem.updateConfig({ particleImage: null });
 	}
