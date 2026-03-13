@@ -47,6 +47,9 @@ export const uiToLibrary = (uiParams) => {
 
 	// Remove editor-only properties
 	delete config.emitterDirection;
+	config.randomColor = config.colorMode === "random";
+	delete config.colorMode;
+	delete config.colorConstant;
 
 	// Gradients: UI Points -> Array Colors
 	if (config.colorGradient) config.colorGradient = mapColorToLibrary(config.colorGradient);
@@ -71,6 +74,9 @@ export const libraryToUI = (libConfig) => {
 	if (params.opacityGradient) params.opacityGradient = mapColorToUI(params.opacityGradient);
 	if (params.scaleGradient) params.scaleGradient = mapColorToUI(params.scaleGradient);
 	if (params.rotationGradient) params.rotationGradient = mapColorToUI(params.rotationGradient);
+
+	params.colorMode = params.randomColor ? "random" : "variable";
+	delete params.randomColor;
 
 	return params;
 }

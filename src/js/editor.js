@@ -34,6 +34,8 @@ const PARAMS = {
 		particleImage: DEFAULT_CONFIG.particleImage || "",
 		scaleMode: DEFAULT_CONFIG.scaleMode,
 		scaleGradient: null,
+		colorMode: "variable",
+		colorConstant: { r: 255, g: 0, b: 0 },
 		colorGradient: null,
 		opacityGradient: null,
 		interactionType: DEFAULT_CONFIG.interactionType,
@@ -242,6 +244,7 @@ presetBlade.on("change", (ev) => {
 	updateSwayVisibility(PARAMS.particleSystem.swayType);
 	updateInteractionVisibility(PARAMS.particleSystem.interactionType);
 	updateRotationVisibility(PARAMS.particleSystem.rotationMode);
+	updateColorVisibility(PARAMS.particleSystem.colorMode);
 	imageBinding.hidden = PARAMS.particleSystem.particleShape !== "image";
 
 	refreshPreview();
@@ -506,17 +509,85 @@ bindParticle(physicsFolder, "gravity", {
 	label: "Gravity (px/s²)"
 });
 
-bindGradient(particlesFolder, "colorGradient", "Color", [
-	{ time: 0, value: { r: 255, g: 0, b: 0, a: 1 } },
-	{ time: 1, value: { r: 0, g: 0, b: 255, a: 1 } },
-]);
+	const colorModeBinding = bindParticle(particlesFolder, "colorMode", {
+		options: {
+			"Constant": "constant",
+			"Variable": "variable",
+			"Random": "random",
+		},
+		label: "Color Mode"
+	}, (val) => {
+		if (isLoadingPreset) return;
+		
+		let newPts = [];
+		if (val === "constant") {
+			const c = PARAMS.particleSystem.colorConstant;
+			newPts = [
+				{ time: 0, value: { r: c.r, g: c.g, b: c.b, a: 1 } },
+				{ time: 1, value: { r: c.r, g: c.g, b: c.b, a: 1 } }
+			];
+		} else if (val === "variable") {
+			newPts = [
+				{ time: 0, value: { r: 255, g: 0, b: 0, a: 1 } },
+				{ time: 1, value: { r: 0, g: 0, b: 255, a: 1 } },
+			];
+		} else if (val === "random") {
+			newPts = [
+				{ time: 0, value: { r: 255, g: 0, b: 0, a: 1 } },
+				{ time: 0.16, value: { r: 255, g: 255, b: 0, a: 1 } },
+				{ time: 0.33, value: { r: 0, g: 255, b: 0, a: 1 } },
+				{ time: 0.5, value: { r: 0, g: 255, b: 255, a: 1 } },
+				{ time: 0.66, value: { r: 0, g: 0, b: 255, a: 1 } },
+				{ time: 0.83, value: { r: 255, g: 0, b: 255, a: 1 } },
+				{ time: 1, value: { r: 255, g: 0, b: 0, a: 1 } }
+			];
+		}
 
-const emitterFolder = pane.addFolder({ title: "Emitter" });
+		const blade = blades.colorGradient;
+		if (blade && newPts.length > 0) {
+			PARAMS.particleSystem.colorGradient = updateGradientBladeValue(blade, newPts, debugging);
+		}
 
-bindParticle(emitterFolder, "emissionRate", { min: 1, max: 10000, step: 5, label: "Emission Rate" });
+		particleSystem.updateConfig({ 
+			randomColor: val === "random",
+			colorGradient: mapToLibrary("colorGradient", PARAMS.particleSystem.colorGradient)
+		});
+		updateColorVisibility(val);
+	});
 
-const emitterPosBinding = bindParticle(emitterFolder, "emitterPosition", {
-	x: { min: -1, max: 1, step: 0.01 },
+	const colorConstantBinding = bindParticle(particlesFolder, "colorConstant", {
+		view: "color",
+		label: "Color",
+	}, (val) => {
+		if (isLoadingPreset) return;
+		// Update gradient to flat
+		const points = [
+			{ time: 0, value: { r: val.r, g: val.g, b: val.b, a: 1 } },
+			{ time: 1, value: { r: val.r, g: val.g, b: val.b, a: 1 } }
+		];
+		if (blades.colorGradient) {
+			PARAMS.particleSystem.colorGradient = updateGradientBladeValue(blades.colorGradient, points, debugging);
+		} else {
+			PARAMS.particleSystem.colorGradient = points;
+		}
+		particleSystem.updateConfig({ colorGradient: mapToLibrary("colorGradient", PARAMS.particleSystem.colorGradient) });
+	});
+
+	bindGradient(particlesFolder, "colorGradient", "Color", [
+		{ time: 0, value: { r: 255, g: 0, b: 0, a: 1 } },
+		{ time: 1, value: { r: 0, g: 0, b: 255, a: 1 } },
+	]);
+
+	const updateColorVisibility = (mode) => {
+		colorConstantBinding.hidden = mode !== "constant";
+		blades.colorGradient.hidden = mode === "constant";
+	};
+	updateColorVisibility(PARAMS.particleSystem.colorMode);
+	const emitterFolder = pane.addFolder({ title: "Emitter" });
+
+	bindParticle(emitterFolder, "emissionRate", { min: 1, max: 10000, step: 5, label: "Emission Rate" });
+
+	const emitterPosBinding = bindParticle(emitterFolder, "emitterPosition", {	x: { min: -1, max: 1, step: 0.01 },
 	y: { min: -1, max: 1, step: 0.01 },
 	label: "Position"
 }, (val) => {

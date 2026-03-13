@@ -26,6 +26,7 @@ export const DEFAULT_CONFIG = {
 		{ time: 0, value: [255, 255, 255, 0.6] },
 		{ time: 1, value: [255, 255, 255, 0.6] }
 	],
+	randomColor: false,
 	rotationMode: "constant",
 	rotationConstant: 0,
 	rotationRandom: { min: 0, max: 360 },
