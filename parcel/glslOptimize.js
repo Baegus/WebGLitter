@@ -2,6 +2,7 @@ const { Optimizer } = require("@parcel/plugin");
 
 module.exports = new Optimizer({
 	async optimize({ bundle, contents, map }) {
+		if (!bundle.name.includes("WebGLitter")) return { contents, map };
 		let code = contents.toString();
 
 		// A simple regex to find WebGL shader strings.
