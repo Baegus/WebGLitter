@@ -33,6 +33,33 @@ export function updateGradientBladeValue(blade, newPoints, debugging = false) {
 	return blade.value.points;
 }
 
+export function enableTouchDeleteForGradient(blade) {
+	const el = blade.element;
+	if (!el) return;
+
+	let lastTapId = null, lastTapTime = 0;
+	const DOUBLE_TAP_DELAY = 300;
+
+	el.addEventListener("pointerdown", (e) => {
+		if (e.pointerType !== "touch") return;
+
+		const marker = e.target.closest(".tp-gradient-range__marker");
+		const pointId = marker?.dataset.id;
+		if (!pointId) return;
+
+		const now = Date.now();
+		if (lastTapId === pointId && now - lastTapTime < DOUBLE_TAP_DELAY) {
+			e.preventDefault();
+			lastTapId = null;
+			lastTapTime = 0;
+			marker.dispatchEvent(new MouseEvent("mouseup", { button: 2, bubbles: true }));
+		} else {
+			lastTapId = pointId;
+			lastTapTime = now;
+		}
+	});
+}
+
 function clearActivePointId(rc) {
 	if (typeof rc.setActivePointId === "function") {
 		rc.setActivePointId(null);

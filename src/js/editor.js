@@ -6,7 +6,7 @@ import * as EssentialsPlugin from "@tweakpane/plugin-essentials";
 import WebGLitter from "./WebGLitter.js";
 import { exportJSON, exportHTML, uiToLibrary, libraryToUI } from "./modules/exporters";
 import { presets, DEFAULT_CONFIG } from "./modules/presets";
-import { updateGradientBladeValue } from "./modules/tweakpaneUtils.js";
+import { updateGradientBladeValue, enableTouchDeleteForGradient } from "./modules/tweakpaneUtils.js";
 
 const debugging = process.env.DEBUG == "true";
 
@@ -111,6 +111,7 @@ const bindGradient = (folder, key, label, initialPoints, colorPicker = true, alp
 		initialPoints: initialPoints,
 	});
 	blades[key] = blade;
+	enableTouchDeleteForGradient(blade);
 	PARAMS.particleSystem[key] = blade.value.points;
 	blade.on("change", (ev) => {
 		if (isLoadingPreset) return;
