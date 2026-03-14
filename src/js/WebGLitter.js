@@ -328,7 +328,7 @@ class WebGLitter {
 			gl_PointSize = u_size * scale;
 			
 			if (u_randomColor > 0.5) {
-				v_color = texture(u_gradientTexture, vec2(a_randomColorT, 0.5));
+				v_color = vec4(texture(u_gradientTexture, vec2(a_randomColorT, 0.5)).rgb, texture(u_gradientTexture, vec2(a_normalizedAge, 0.5)).a);
 			} else {
 				v_color = texture(u_gradientTexture, vec2(a_normalizedAge, 0.5));
 			}
