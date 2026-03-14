@@ -67,10 +67,10 @@ export const presets = {
 		"fpsLimit": 60,
 		"emitterPosition": {
 			"x": 0.5,
-			"y": 0.86
+			"y": 0.5
 		},
 		"emitterSize": {
-			"x": 0.07,
+			"x": 0,
 			"y": 0
 		},
 		"emitterAngle": -90,
@@ -100,4 +100,74 @@ export const presets = {
 		"swayFrequency": 1.8,
 		"maxParticles": 100000
 	},
+	"Benchmark": {
+		"emissionRate": 10000,
+		"particleLife": 2,
+		"particleSpeed": 100,
+		"particleSize": 50,
+		"scaleMode": "variable",
+		"scaleGradient": [
+			{ "time": 0, "value": [255, 255, 255, 1] },
+			{ "time": 0.42, "value": [255, 255, 255, 0.4] },
+			{ "time": 1, "value": [255, 255, 255, 1] }
+		],
+		"scaleRandom": {
+			"min": 1,
+			"max": 100
+		},
+		"particleDimensions": {
+			"x": 64,
+			"y": 64
+		},
+		"fpsLimit": 0,
+		"emitterPosition": {
+			"x": 0.5,
+			"y": 0
+		},
+		"emitterSize": {
+			"x": 1,
+			"y": 0
+		},
+		"emitterAngle": 0,
+		"emitterSpread": 360,
+		"particleShape": "rectangle",
+		"particleImage": "",
+		"colorGradient": [
+			{ "time": 0, "value": [255, 0, 0, 1] },
+			{ "time": 0.16, "value": [255, 255, 0, 1] },
+			{ "time": 0.33, "value": [0, 255, 0, 1] },
+			{ "time": 0.5, "value": [0, 255, 255, 1] },
+			{ "time": 0.66, "value": [0, 0, 255, 1] },
+			{ "time": 0.83, "value": [255, 0, 255, 1] },
+			{ "time": 1, "value": [255, 0, 0, 1] }
+		],
+		"opacityGradient": [
+			{ "time": 0, "value": [255, 255, 255, 1] },
+			{ "time": 1, "value": [255, 255, 255, 0] }
+		],
+		"interactionType": "repel",
+		"repelRadius": 481,
+		"repelStrength": 2170,
+		"gravity": {
+			"x": -595,
+			"y": 824
+		},
+		"blendMode": "screen",
+		"swayType": "circular",
+		"swayAmount": 156,
+		"swayFrequency": 10,
+		"rotationMode": "variable",
+		"rotationConstant": 0,
+		"rotationRandom": {
+			"min": 0,
+			"max": 360
+		},
+		"rotationGradient": [
+			{ "time": 0, "value": [255, 255, 255, 0] },
+			{ "time": 0.65, "value": [255, 255, 255, 1] },
+			{ "time": 1, "value": [255, 255, 255, 0] }
+		],
+		"maxParticles": 100000,
+		"randomColor": true
+	}
 };
