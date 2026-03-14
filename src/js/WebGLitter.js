@@ -632,13 +632,24 @@ class WebGLitter {
 			if (swayAmount > 0) {
 				const phase = cpu[i8 + 6];
 				const t = age * swayFreq + phase;
+				let sw = 0, sf = 0; // lateral (perpendicular) and forward components
 				if (swayType === "sine") {
-					sx = Math.sin(t) * swayAmount;
+					sw = Math.sin(t) * swayAmount;
 				} else if (swayType === "zigzag") {
-					sx = (Math.abs((t / Math.PI % 2) - 1) * 2 - 1) * swayAmount;
+					sw = (Math.abs((t / Math.PI % 2) - 1) * 2 - 1) * swayAmount;
 				} else if (swayType === "circular") {
-					sx = Math.sin(t) * swayAmount;
-					sy = Math.cos(t) * swayAmount;
+					sw = Math.sin(t) * swayAmount;
+					sf = Math.cos(t) * swayAmount;
+				}
+				const vx = cpu[i8 + 2], vy = cpu[i8 + 3];
+				const spd = Math.sqrt(vx * vx + vy * vy);
+				if (spd > 0) {
+					const fx = vx / spd, fy = vy / spd; // forward unit vector
+					sx = -fy * sw + fx * sf; // perpendicular * lateral + forward * along
+					sy =  fx * sw + fy * sf;
+				} else {
+					sx = sw;
+					sy = sf;
 				}
 			}
 
