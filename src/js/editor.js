@@ -4,7 +4,7 @@ import { GradientPluginBundle } from "tweakpane-plugin-gradient";
 import * as TweakpaneFileImportPlugin from "tweakpane-plugin-file-import";
 import * as EssentialsPlugin from "@tweakpane/plugin-essentials";
 import WebGLitter from "./WebGLitter.js";
-import { exportJSON, exportHTML, uiToLibrary, libraryToUI } from "./modules/exporters";
+import { exportJSON, exportJSONZip, exportHTML, uiToLibrary, libraryToUI } from "./modules/exporters";
 import { presets, DEFAULT_CONFIG } from "./modules/presets";
 import { updateGradientBladeValue, enableTouchDeleteForGradient } from "./modules/tweakpaneUtils.js";
 
@@ -247,6 +247,7 @@ presetBlade.on("change", (ev) => {
 	updateRotationVisibility(PARAMS.particleSystem.rotationMode);
 	updateColorVisibility(PARAMS.particleSystem.colorMode);
 	imageBinding.hidden = PARAMS.particleSystem.particleShape !== "image";
+	updateExportVisibility();
 
 	refreshPreview();
 	isLoadingPreset = false;
@@ -274,6 +275,7 @@ bindParticle(shapeFolder, "particleShape", {
 	if (isLoadingPreset) return;
 	particleSystem.updateConfig({ particleShape: val });
 	imageBinding.hidden = val !== "image";
+	updateExportVisibility();
 });
 
 const imageBinding = bindParticle(shapeFolder, "particleImage", {
@@ -647,21 +649,37 @@ updateInteractionVisibility(PARAMS.particleSystem.interactionType);
 const exportFolder = pane.addFolder({ title: "Export" });
 const exportParams = {
 	format: "json",
+	includeImage: false,
 };
 exportFolder.addBinding(exportParams, "format", {
 	options: {
 		JSON: "json",
-		HTML: "html",
+		"HTML bundle (ZIP)": "html",
 	},
 	label: "Format"
+}).on("change", () => updateExportVisibility());
+
+const includeImageBinding = exportFolder.addBinding(exportParams, "includeImage", {
+	label: "Include image (ZIP)"
 });
 
+const updateExportVisibility = () => {
+	const isImageShape = PARAMS.particleSystem.particleShape === "image";
+	includeImageBinding.hidden = !(exportParams.format === "json" && isImageShape);
+	if (!isImageShape) exportParams.includeImage = false;
+};
+updateExportVisibility();
+
 const exportButton = exportFolder.addButton({ title: "Export" });
-exportButton.on("click", () => {
+exportButton.on("click", async () => {
 	if (exportParams.format === "json") {
-		exportJSON(PARAMS);
-	} else if (exportParams.format === "html") {
-		exportHTML(PARAMS);
+		if (exportParams.includeImage && PARAMS.particleSystem.particleShape === "image") {
+			await exportJSONZip(PARAMS);
+		} else {
+			exportJSON(PARAMS);
+		}
+	} else {
+		await exportHTML(PARAMS);
 	}
 });
 

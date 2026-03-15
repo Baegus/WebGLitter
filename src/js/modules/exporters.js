@@ -1,4 +1,5 @@
-import { triggerDownload } from "./utils";
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 
 const mapColorToLibrary = (points) => points.map(p => ({
 	time: p.time,
@@ -81,10 +82,60 @@ export const libraryToUI = (libConfig) => {
 	return params;
 }
 
-export const exportHTML = (PARAMS) => {
+export const exportJSONZip = async (PARAMS) => {
+	const imageFile = PARAMS.particleSystem.particleImage;
+	if (!(imageFile instanceof File)) {
+		exportJSON(PARAMS);
+		return;
+	}
+
+	const ext = imageFile.name.split(".").pop();
+	const imageFileName = `particleImage.${ext}`;
+
+	const config = uiToLibrary(PARAMS);
+	config.particleImage = `./${imageFileName}`;
+
+	const data = {
+		canvas: PARAMS.canvas,
+		particleSystem: config,
+	};
+
+	const zip = new JSZip();
+	zip.file("WebGLitterConfig.json", formatJSON(data));
+	zip.file(imageFileName, imageFile);
+
+	const blob = await zip.generateAsync({ type: "blob" });
+	saveAs(blob, "WebGLitterConfig.zip");
+};
+
+export const exportHTML = async (PARAMS) => {
 	const config = uiToLibrary(PARAMS);
 	const canvasSize = PARAMS.canvas.size;
-	const bgColor = PARAMS.canvas.backgroundColor;
+	const timestamp = Date.now();
+
+	const imageFile = PARAMS.particleSystem.particleImage instanceof File
+		? PARAMS.particleSystem.particleImage
+		: null;
+	const imageFileName = imageFile
+		? `particleImage.${imageFile.name.split(".").pop()}`
+		: null;
+
+	if (imageFileName) {
+		config.particleImage = `./${imageFileName}`;
+	}
+
+	let libContent = null;
+	try {
+		const resp = await fetch(`lib/WebGLitter.js?v=${timestamp}`);
+		if (resp.ok && resp.headers.get("content-type").includes("javascript")) {
+			libContent = await resp.text();
+		} else {
+			throw new Error("");
+			
+		}
+	} catch (_) {
+		alert("The standalone library is not available for export. You need to provide the current build from GitHub or a CDN.");
+	}
 
 	const html = `<!DOCTYPE html>
 <html lang="en">
@@ -127,7 +178,7 @@ export const exportHTML = (PARAMS) => {
 </div>
 
 <script type="module">
-import WebGLitter from "./WebGLitter.js";
+import WebGLitter from "./lib/WebGLitter.js";
 
 // ---------------------------------------------------------------------------
 // Config — edit any property here before or after instantiation
@@ -209,7 +260,19 @@ speedSlider.addEventListener("input", () => {
 
 </body>
 </html>`;
-	triggerDownload("webglitter-preview.html", html, "text/html");
+
+	const zip = new JSZip();
+	zip.file("index.html", html);
+	if (imageFile && imageFileName) {
+		zip.file(imageFileName, imageFile);
+	}
+	const libFolder = zip.folder("lib");
+	if (libContent) {
+		libFolder.file("WebGLitter.js", libContent);
+	}
+
+	const blob = await zip.generateAsync({ type: "blob" });
+	saveAs(blob, "WebGLitterExport.zip");
 }
 
 export const exportJSON = (PARAMS) => {
@@ -218,5 +281,5 @@ export const exportJSON = (PARAMS) => {
 		particleSystem: uiToLibrary(PARAMS),
 	};
 	const json = formatJSON(data);
-	triggerDownload("webglitter-config.json", json, "application/json");
+	saveAs(new Blob([json], { type: "application/json" }), "WebGLitterConfig.json");
 }
