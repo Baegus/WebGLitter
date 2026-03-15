@@ -275,6 +275,30 @@ speedSlider.addEventListener("input", () => {
 	saveAs(blob, "WebGLitterExport.zip");
 }
 
+export const exportJSONBase64 = async (PARAMS) => {
+	const imageFile = PARAMS.particleSystem.particleImage;
+	if (!(imageFile instanceof File)) {
+		exportJSON(PARAMS);
+		return;
+	}
+
+	const dataUri = await new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => resolve(reader.result);
+		reader.onerror = reject;
+		reader.readAsDataURL(imageFile);
+	});
+
+	const config = uiToLibrary(PARAMS);
+	config.particleImage = dataUri;
+
+	const data = {
+		canvas: PARAMS.canvas,
+		particleSystem: config,
+	};
+	saveAs(new Blob([formatJSON(data)], { type: "application/json" }), "WebGLitterConfig.json");
+};
+
 export const exportJSON = (PARAMS) => {
 	const data = {
 		canvas: PARAMS.canvas,

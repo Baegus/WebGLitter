@@ -4,7 +4,7 @@ import { GradientPluginBundle } from "tweakpane-plugin-gradient";
 import * as TweakpaneFileImportPlugin from "tweakpane-plugin-file-import";
 import * as EssentialsPlugin from "@tweakpane/plugin-essentials";
 import WebGLitter from "./WebGLitter.js";
-import { exportJSON, exportJSONZip, exportHTML, uiToLibrary, libraryToUI } from "./modules/exporters";
+import { exportJSON, exportJSONZip, exportJSONBase64, exportHTML, uiToLibrary, libraryToUI } from "./modules/exporters";
 import { presets, DEFAULT_CONFIG } from "./modules/presets";
 import { updateGradientBladeValue, enableTouchDeleteForGradient } from "./modules/tweakpaneUtils.js";
 
@@ -307,6 +307,7 @@ const imageBinding = bindParticle(shapeFolder, "particleImage", {
 	} else {
 		particleSystem.updateConfig({ particleImage: null });
 	}
+	updateExportVisibility();
 });
 imageBinding.hidden = PARAMS.particleSystem.particleShape !== "image";
 
@@ -650,6 +651,7 @@ const exportFolder = pane.addFolder({ title: "Export" });
 const exportParams = {
 	format: "json",
 	includeImage: false,
+	imageFormat: "zip",
 };
 exportFolder.addBinding(exportParams, "format", {
 	options: {
@@ -660,27 +662,45 @@ exportFolder.addBinding(exportParams, "format", {
 }).on("change", () => updateExportVisibility());
 
 const includeImageBinding = exportFolder.addBinding(exportParams, "includeImage", {
-	label: "Include image (ZIP)"
+	label: "Include image"
+});
+includeImageBinding.on("change", () => updateExportVisibility());
+
+const imageFormatBinding = exportFolder.addBinding(exportParams, "imageFormat", {
+	options: {
+		"Separate file (ZIP)": "zip",
+		"Base64 (in JSON)": "base64",
+	},
+	label: "Image encoding"
 });
 
 const updateExportVisibility = () => {
-	const isImageShape = PARAMS.particleSystem.particleShape === "image";
-	includeImageBinding.hidden = !(exportParams.format === "json" && isImageShape);
-	if (!isImageShape) exportParams.includeImage = false;
+	const hasImage = PARAMS.particleSystem.particleShape === "image" && PARAMS.particleSystem.particleImage instanceof File;
+	const isJson = exportParams.format === "json";
+	includeImageBinding.hidden = !(isJson && hasImage);
+	imageFormatBinding.hidden = !(isJson && hasImage && exportParams.includeImage);
+	if (!hasImage && exportParams.includeImage) {
+		exportParams.includeImage = false;
+		includeImageBinding.refresh();
+	}
 };
 updateExportVisibility();
 
 const exportButton = exportFolder.addButton({ title: "Export" });
 exportButton.on("click", async () => {
-	if (exportParams.format === "json") {
-		if (exportParams.includeImage && PARAMS.particleSystem.particleShape === "image") {
-			await exportJSONZip(PARAMS);
-		} else {
-			exportJSON(PARAMS);
+	if (exportParams.format === "json" && exportParams.includeImage) {
+		if (exportParams.imageFormat === "base64") {
+			await exportJSONBase64(PARAMS);
+			return;
 		}
-	} else {
-		await exportHTML(PARAMS);
+		await exportJSONZip(PARAMS);
+		return;
 	}
+	if (exportParams.format === "json") {
+		exportJSON(PARAMS);
+		return;
+	}
+	await exportHTML(PARAMS);
 });
 
 const canvas = getID("preview-canvas");

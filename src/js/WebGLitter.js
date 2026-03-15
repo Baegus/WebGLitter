@@ -273,7 +273,10 @@ class WebGLitter {
 			return;
 		}
 
+		const src = this.config.particleImage;
 		const img = new Image();
+		// Only set crossOrigin for real URLs — data URIs and blob URLs are same-origin
+		if (/^https?:\/\//i.test(src)) img.crossOrigin = "anonymous";
 		img.onload = () => {
 			if (!this.particleTexture) this.particleTexture = gl.createTexture();
 			gl.bindTexture(gl.TEXTURE_2D, this.particleTexture);
@@ -285,7 +288,7 @@ class WebGLitter {
 			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 		};
-		img.src = this.config.particleImage;
+		img.src = src; // accepts URLs, data URIs (base64), and blob URLs
 	}
 
 	initWebGL() {
