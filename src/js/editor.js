@@ -675,7 +675,9 @@ const imageFormatBinding = exportFolder.addBinding(exportParams, "imageFormat", 
 });
 
 const updateExportVisibility = () => {
-	const hasImage = PARAMS.particleSystem.particleShape === "image" && PARAMS.particleSystem.particleImage instanceof File;
+	const img = PARAMS.particleSystem.particleImage;
+	const hasImage = PARAMS.particleSystem.particleShape === "image"
+		&& (img instanceof File || (typeof img === "string" && img !== ""));
 	const isJson = exportParams.format === "json";
 	includeImageBinding.hidden = !(isJson && hasImage);
 	imageFormatBinding.hidden = !(isJson && hasImage && exportParams.includeImage);

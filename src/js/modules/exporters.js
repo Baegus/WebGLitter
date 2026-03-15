@@ -82,14 +82,23 @@ export const libraryToUI = (libConfig) => {
 	return params;
 }
 
+const getImageBlob = async (img) => {
+	if (img instanceof File) return { blob: img, ext: img.name.split(".").pop() };
+	const resp = await fetch(img);
+	const blob = await resp.blob();
+	const ext = (blob.type.split("/")[1] || "png").replace(/\+.*$/, "");
+	return { blob, ext };
+};
+
 export const exportJSONZip = async (PARAMS) => {
 	const imageFile = PARAMS.particleSystem.particleImage;
-	if (!(imageFile instanceof File)) {
+	const hasImage = imageFile instanceof File || (typeof imageFile === "string" && imageFile !== "");
+	if (!hasImage) {
 		exportJSON(PARAMS);
 		return;
 	}
 
-	const ext = imageFile.name.split(".").pop();
+	const { blob: imageBlob, ext } = await getImageBlob(imageFile);
 	const imageFileName = `particleImage.${ext}`;
 
 	const config = uiToLibrary(PARAMS);
@@ -102,7 +111,7 @@ export const exportJSONZip = async (PARAMS) => {
 
 	const zip = new JSZip();
 	zip.file("WebGLitterConfig.json", formatJSON(data));
-	zip.file(imageFileName, imageFile);
+	zip.file(imageFileName, imageBlob);
 
 	const blob = await zip.generateAsync({ type: "blob" });
 	saveAs(blob, "WebGLitterConfig.zip");
@@ -113,12 +122,18 @@ export const exportHTML = async (PARAMS) => {
 	const canvasSize = PARAMS.canvas.size;
 	const timestamp = Date.now();
 
-	const imageFile = PARAMS.particleSystem.particleImage instanceof File
-		? PARAMS.particleSystem.particleImage
-		: null;
-	const imageFileName = imageFile
-		? `particleImage.${imageFile.name.split(".").pop()}`
-		: null;
+	const rawImage = PARAMS.particleSystem.particleImage;
+	const hasImage = rawImage instanceof File || (typeof rawImage === "string" && rawImage !== "");
+	let imageBlob = null;
+	let imageFileName = null;
+
+	if (hasImage) {
+		try {
+			const { blob, ext } = await getImageBlob(rawImage);
+			imageBlob = blob;
+			imageFileName = `particleImage.${ext}`;
+		} catch (_) { /* URL unreachable — skip embedding */ }
+	}
 
 	if (imageFileName) {
 		config.particleImage = `./${imageFileName}`;
@@ -263,8 +278,8 @@ speedSlider.addEventListener("input", () => {
 
 	const zip = new JSZip();
 	zip.file("index.html", html);
-	if (imageFile && imageFileName) {
-		zip.file(imageFileName, imageFile);
+	if (imageBlob && imageFileName) {
+		zip.file(imageFileName, imageBlob);
 	}
 	const libFolder = zip.folder("lib");
 	if (libContent) {
@@ -277,17 +292,24 @@ speedSlider.addEventListener("input", () => {
 
 export const exportJSONBase64 = async (PARAMS) => {
 	const imageFile = PARAMS.particleSystem.particleImage;
-	if (!(imageFile instanceof File)) {
+	const hasImage = imageFile instanceof File || (typeof imageFile === "string" && imageFile !== "");
+	if (!hasImage) {
 		exportJSON(PARAMS);
 		return;
 	}
 
-	const dataUri = await new Promise((resolve, reject) => {
-		const reader = new FileReader();
-		reader.onload = () => resolve(reader.result);
-		reader.onerror = reject;
-		reader.readAsDataURL(imageFile);
-	});
+	let dataUri;
+	if (imageFile.startsWith?.("data:")) {
+		dataUri = imageFile;
+	} else {
+		const { blob } = await getImageBlob(imageFile);
+		dataUri = await new Promise((resolve, reject) => {
+			const reader = new FileReader();
+			reader.onload = () => resolve(reader.result);
+			reader.onerror = reject;
+			reader.readAsDataURL(blob);
+		});
+	}
 
 	const config = uiToLibrary(PARAMS);
 	config.particleImage = dataUri;
