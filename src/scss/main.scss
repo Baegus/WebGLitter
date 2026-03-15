@@ -42,9 +42,26 @@ body {
 		}
 		height: 100%;
 		background: #1a1a1a;
-		border-right: 1px solid #333;
 		overflow-x: hidden;
+		overflow-y: auto;
+		padding-right: 2px;
 		flex-shrink: 0;
+		scrollbar-width: 8px;
+		scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+
+		&::-webkit-scrollbar {
+			width: 8px;
+		}
+		&::-webkit-scrollbar-track {
+			background: transparent;
+		}
+		&::-webkit-scrollbar-thumb {
+			background: rgba(255, 255, 255, 0.2);
+			border-radius: 4px;
+		}
+		&::-webkit-scrollbar-thumb:hover {
+			background: rgba(255, 255, 255, 0.4);
+		}
 
 		// Tweakpane overrides to make it fill the container
 		.tp-dfv {
