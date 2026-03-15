@@ -1,4 +1,4 @@
-import { getID } from "./modules/utils";
+import { getID, addCl, remCl } from "./modules/utils";
 import { Pane } from "tweakpane";
 import { GradientPluginBundle } from "tweakpane-plugin-gradient";
 import * as TweakpaneFileImportPlugin from "tweakpane-plugin-file-import";
@@ -175,17 +175,103 @@ canvasFolder.addButton({ title: "Refresh Preview" }).on("click", () => {
 
 const particlesFolder = pane.addFolder({ title: "Particles" });
 
-const presetBlade = particlesFolder.addBlade({
-	view: "list",
-	label: "Preset",
-	options: presets,
-	value: presets.Default,
+const LOAD_JSON_KEY = "LOAD_JSON_ACTION";
+const buildPresetOptions = (extra = {}) => ({
+	"Load from JSON...": LOAD_JSON_KEY,
+	...extra,
+	...presets
 });
 
-presetBlade.on("change", (ev) => {
-	const preset = ev.value;
-	if (!preset) return;
+// Hidden file input for loading JSON
+const fileInput = document.createElement("input");
+fileInput.type = "file";
+fileInput.accept = ".json";
+fileInput.style.display = "none";
+document.body.appendChild(fileInput);
 
+const loadExternalPreset = (data) => {
+	let config = data;
+	
+	// Handle full export (includes canvas) vs partial (just particles)
+	if (data.particleSystem) {
+		config = data.particleSystem;
+		if (data.canvas) {
+			if (data.canvas.size) Object.assign(PARAMS.canvas.size, data.canvas.size);
+			if (data.canvas.backgroundColor) PARAMS.canvas.backgroundColor = data.canvas.backgroundColor;
+			updateCanvas();
+		}
+	}
+
+	// Add "Unsaved preset" and reload blade
+	presetBlade.dispose();
+	
+	const options = buildPresetOptions({ "Unsaved preset": config });
+
+	// Capture the current first child (which will be the one after our new blade)
+	const nextBlade = particlesFolder.children[0];
+
+	presetBlade = particlesFolder.addBlade({
+		view: "list",
+		label: "Preset",
+		options: options,
+		value: config,
+	});
+	
+	// Move blade to top (before the previously first child)
+	if (nextBlade) {
+		const container = nextBlade.element.parentNode;
+		remCl(nextBlade.element,"tp-v-fst");
+		addCl(nextBlade.element,"tp-v-lst");
+		addCl(presetBlade.element,"tp-v-fst");
+		container.insertBefore(presetBlade.element, nextBlade.element);
+	}
+
+	presetBlade.on("change", handlePresetChange);
+
+	// Apply the particle config
+	applyPreset(config);
+};
+
+fileInput.addEventListener("change", (e) => {
+	const file = e.target.files[0];
+	if (file) {
+		const reader = new FileReader();
+		reader.onload = (ev) => {
+			try {
+				const json = JSON.parse(ev.target.result);
+				loadExternalPreset(json);
+			} catch (err) {
+				console.error(err);
+				alert("Failed to load JSON preset.");
+			}
+		};
+		reader.readAsText(file);
+	}
+	fileInput.value = "";
+});
+
+// Drag and drop support
+document.addEventListener("dragover", (e) => e.preventDefault());
+document.addEventListener("drop", (e) => {
+	e.preventDefault();
+	if (!e.dataTransfer.files.length) return;
+	const file = e.dataTransfer.files[0];
+	if (!file.name.toLowerCase().endsWith(".json")) return;
+	const reader = new FileReader();
+	reader.onload = (ev) => {
+		try {
+			const json = JSON.parse(ev.target.result);
+			loadExternalPreset(json);
+		} catch (err) {
+			console.error(err);
+			alert("Failed to load JSON preset.");
+		}
+	};
+	reader.readAsText(file);
+});
+
+const applyPreset = (preset) => {
+	if (!preset) return;
 	isLoadingPreset = true;
 
 	// Reset to defaults first to ensure properties not in the preset are cleared
@@ -251,7 +337,24 @@ presetBlade.on("change", (ev) => {
 
 	refreshPreview();
 	isLoadingPreset = false;
+};
+
+const handlePresetChange = (ev) => {
+	if (ev.value === LOAD_JSON_KEY) {
+		fileInput.click();
+		return;
+	}
+	applyPreset(ev.value);
+};
+
+let presetBlade = particlesFolder.addBlade({
+	view: "list",
+	label: "Preset",
+	options: buildPresetOptions(),
+	value: presets.Default,
 });
+
+presetBlade.on("change", handlePresetChange);
 
 bindParticle(particlesFolder, "blendMode", {
 	options: {
@@ -879,8 +982,8 @@ function refreshLayout() {
 }
 
 function collapsePanel() {
-	controlsPanel.classList.add("collapsed");
-	toggleControlsButton.classList.remove("hidden");
+	addCl(controlsPanel,"collapsed");
+	remCl(toggleControlsButton,"hidden");
 	refreshLayout();
 }
 
@@ -894,8 +997,8 @@ function resizePanel(e) {
 		return;
 	}
 	
-	controlsPanel.classList.remove("collapsed");
-	toggleControlsButton.classList.add("hidden");
+	remCl(controlsPanel,"collapsed");
+	addCl(toggleControlsButton,"hidden");
 	
 	controlsPanel.style.width = `${newWidth}px`;
 	refreshLayout();
@@ -914,9 +1017,9 @@ window.addEventListener("pointerup", stopResize);
 
 toggleControlsButton.addEventListener("click", () => {
 	if (!controlsPanel.classList.contains("collapsed")) return;
-	controlsPanel.classList.remove("collapsed");
+	remCl(controlsPanel,"collapsed");
 	controlsPanel.style.width = `${DEFAULT_PANEL_WIDTH}px`; // Restore to last known width
-	toggleControlsButton.classList.add("hidden");
+	addCl(toggleControlsButton,"hidden");
 	pane.expanded = true;
 	refreshLayout();
 });
