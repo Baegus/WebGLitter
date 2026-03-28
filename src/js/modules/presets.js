@@ -8,6 +8,8 @@ export const DEFAULT_CONFIG = {
 	fpsLimit: 60,
 	emitterPosition: { x: 0.5, y: 0.5 },
 	emitterSize: { x: 0, y: 0 },
+	emitterShape: "rectangle",
+	emitterFill: "fill",
 	emitterAngle: 0,
 	emitterSpread: 360,
 	particleShape: "softCircle",

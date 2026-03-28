@@ -547,6 +547,8 @@ class WebGLitter {
 		const ew = this.config.emitterSize.x * this.canvas.width;
 		const eh = this.config.emitterSize.y * this.canvas.height;
 
+		const eShape = this.config.emitterShape || "rectangle";
+		const eFill = this.config.emitterFill || "fill";
 		const eAngle = this.config.emitterAngle * this.degToRad;
 		const eSpread = this.config.emitterSpread * this.degToRad;
 		const bSpeed = this.config.particleSpeed;
@@ -602,8 +604,25 @@ class WebGLitter {
 				cpu[i8 + 1] += cpu[i8 + 3] * dt;
 			} else if (this.spawnRemainder >= 1.0) {
 				this.spawnRemainder -= 1.0;
-				cpu[i8] = ex + (Math.random() - 0.5) * ew;
-				cpu[i8 + 1] = ey + (Math.random() - 0.5) * eh;
+				if (eShape === "circle") {
+					let angle = Math.random() * Math.PI * 2;
+					let r = eFill === "fill" ? Math.sqrt(Math.random()) : 1;
+					cpu[i8] = ex + Math.cos(angle) * (ew * 0.5) * r;
+					cpu[i8 + 1] = ey + Math.sin(angle) * (eh * 0.5) * r;
+				} else {
+					if (eFill === "rim" && (ew > 0 || eh > 0)) {
+						if (Math.random() < ew / (ew + eh)) {
+							cpu[i8] = ex + (Math.random() - 0.5) * ew;
+							cpu[i8 + 1] = ey + (Math.random() > 0.5 ? 0.5 : -0.5) * eh;
+						} else {
+							cpu[i8] = ex + (Math.random() > 0.5 ? 0.5 : -0.5) * ew;
+							cpu[i8 + 1] = ey + (Math.random() - 0.5) * eh;
+						}
+					} else {
+						cpu[i8] = ex + (Math.random() - 0.5) * ew;
+						cpu[i8 + 1] = ey + (Math.random() - 0.5) * eh;
+					}
+				}
 
 				let angle = eAngle + (Math.random() - 0.5) * eSpread;
 				let speed = bSpeed + Math.random() * bSpeed * 0.5;
@@ -668,8 +687,25 @@ class WebGLitter {
 			let i8 = i * 8;
 			let i6 = i * 6;
 
-			cpu[i8] = ex + (Math.random() - 0.5) * ew;
-			cpu[i8 + 1] = ey + (Math.random() - 0.5) * eh;
+			if (eShape === "circle") {
+				let angle = Math.random() * Math.PI * 2;
+				let r = eFill === "fill" ? Math.sqrt(Math.random()) : 1;
+				cpu[i8] = ex + Math.cos(angle) * (ew * 0.5) * r;
+				cpu[i8 + 1] = ey + Math.sin(angle) * (eh * 0.5) * r;
+			} else {
+				if (eFill === "rim" && (ew > 0 || eh > 0)) {
+					if (Math.random() < ew / (ew + eh)) {
+						cpu[i8] = ex + (Math.random() - 0.5) * ew;
+						cpu[i8 + 1] = ey + (Math.random() > 0.5 ? 0.5 : -0.5) * eh;
+					} else {
+						cpu[i8] = ex + (Math.random() > 0.5 ? 0.5 : -0.5) * ew;
+						cpu[i8 + 1] = ey + (Math.random() - 0.5) * eh;
+					}
+				} else {
+					cpu[i8] = ex + (Math.random() - 0.5) * ew;
+					cpu[i8 + 1] = ey + (Math.random() - 0.5) * eh;
+				}
+			}
 
 			let angle = eAngle + (Math.random() - 0.5) * eSpread;
 			let speed = bSpeed + Math.random() * bSpeed * 0.5;

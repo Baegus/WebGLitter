@@ -27,6 +27,8 @@ const PARAMS = {
 		fpsLimit: DEFAULT_CONFIG.fpsLimit || 60,
 		emitterPosition: { x: (DEFAULT_CONFIG.emitterPosition.x * 2) - 1, y: (DEFAULT_CONFIG.emitterPosition.y * 2) - 1 },
 		emitterSize: { ...DEFAULT_CONFIG.emitterSize },
+		emitterShape: DEFAULT_CONFIG.emitterShape || "rectangle",
+		emitterFill: DEFAULT_CONFIG.emitterFill || "fill",
 		emitterAngle: DEFAULT_CONFIG.emitterAngle,
 		emitterDirection: { x: 1, y: 0 }, // Will be updated by Sync logic below
 		emitterSpread: DEFAULT_CONFIG.emitterSpread,
@@ -708,6 +710,22 @@ bindParticle(emitterFolder, "emitterSize", {
 	x: { min: 0, max: 1, step: 0.01 },
 	y: { min: 0, max: 1, step: 0.01 },
 	label: "Size (W/H)"
+});
+
+bindParticle(emitterFolder, "emitterShape", {
+	options: {
+		"Rectangle": "rectangle",
+		"Circle": "circle",
+	},
+	label: "Shape"
+});
+
+bindParticle(emitterFolder, "emitterFill", {
+	options: {
+		"Fill": "fill",
+		"Rim": "rim",
+	},
+	label: "Fill"
 });
 
 bindParticle(emitterFolder, "emitterDirection", {
