@@ -85,6 +85,94 @@ class WebGLitter {
 		this.emitting = true;
 	}
 
+	/** Spawn a single particle at slot `i` using emitter origin `(ex, ey)` in canvas pixels. */
+	#spawnOne(i, ex, ey) {
+		const cpu = this.cpuData;
+		const gpu = this.gpuData;
+		const cfg = this.config;
+		const i8 = i * 8;
+		const i6 = i * 6;
+
+		const ew = cfg.emitterSize.x * this.canvas.width;
+		const eh = cfg.emitterSize.y * this.canvas.height;
+		const eShape = cfg.emitterShape || "rectangle";
+		const eFill = cfg.emitterFill || "fill";
+
+		// Position
+		if (eShape === "circle") {
+			const a = Math.random() * Math.PI * 2;
+			const r = eFill === "fill" ? Math.sqrt(Math.random()) : 1;
+			cpu[i8]     = ex + Math.cos(a) * (ew * 0.5) * r;
+			cpu[i8 + 1] = ey + Math.sin(a) * (eh * 0.5) * r;
+		} else if (eFill === "rim" && (ew > 0 || eh > 0)) {
+			if (Math.random() < ew / (ew + eh)) {
+				cpu[i8]     = ex + (Math.random() - 0.5) * ew;
+				cpu[i8 + 1] = ey + (Math.random() > 0.5 ? 0.5 : -0.5) * eh;
+			} else {
+				cpu[i8]     = ex + (Math.random() > 0.5 ? 0.5 : -0.5) * ew;
+				cpu[i8 + 1] = ey + (Math.random() - 0.5) * eh;
+			}
+		} else {
+			cpu[i8]     = ex + (Math.random() - 0.5) * ew;
+			cpu[i8 + 1] = ey + (Math.random() - 0.5) * eh;
+		}
+
+		// Velocity
+		const angle = cfg.emitterAngle * this.degToRad + (Math.random() - 0.5) * cfg.emitterSpread * this.degToRad;
+		const speedRandom = cfg.speedRandom || { min: 10, max: 100 };
+		const speed = (cfg.speedMode === "variable")
+			? speedRandom.min + Math.random() * (speedRandom.max - speedRandom.min)
+			: cfg.particleSpeed + Math.random() * cfg.particleSpeed * 0.5;
+		cpu[i8 + 2] = Math.cos(angle) * speed;
+		cpu[i8 + 3] = Math.sin(angle) * speed;
+
+		// Age / life
+		cpu[i8 + 4] = 0.0;
+		cpu[i8 + 5] = cfg.particleLife + Math.random() * cfg.particleLife * 0.5;
+
+		// Per-particle random phase & rotation
+		cpu[i8 + 6] = Math.random() * Math.PI * 2;
+		const rRandom = cfg.rotationRandom || { min: 0, max: 360 };
+		cpu[i8 + 7] = (cfg.rotationMode === "variable")
+			? (rRandom.min + Math.random() * (rRandom.max - rRandom.min)) * this.degToRad
+			: (cfg.rotationConstant || 0) * this.degToRad;
+
+		// GPU mirror
+		gpu[i6]     = cpu[i8];
+		gpu[i6 + 1] = cpu[i8 + 1];
+		gpu[i6 + 2] = 0.0;
+		const sRandom = cfg.scaleRandom || { min: 50, max: 100 };
+		gpu[i6 + 3] = (cfg.scaleMode === "variable")
+			? (sRandom.min + Math.random() * (sRandom.max - sRandom.min)) / 100.0
+			: 1.0;
+		gpu[i6 + 4] = cpu[i8 + 7];
+		gpu[i6 + 5] = Math.random();
+	}
+
+	/** Emit particles at a specific position */
+	emitAt(normalizedX, normalizedY, count) {
+		const cpu = this.cpuData;
+		const ex = normalizedX * this.canvas.width;
+		const ey = normalizedY * this.canvas.height;
+		let spawned = 0;
+
+		// Reuse dead particle slots
+		for (let i = 0; i < this.activeParticles && spawned < count; i++) {
+			if (cpu[i * 8 + 4] >= cpu[i * 8 + 5]) {
+				this.#spawnOne(i, ex, ey);
+				spawned++;
+			}
+		}
+
+		// Allocate new slots up to the cap
+		while (spawned < count && this.activeParticles < this.config.maxParticles) {
+			this.#spawnOne(Math.floor(this.activeParticles), ex, ey);
+			this.activeParticles++;
+			spawned++;
+		}
+	}
+
+	/** Update the particle system configuration. */
 	updateConfig(newConfig) {
 		const oldShape = this.config.particleShape;
 		const oldMax = this.config.maxParticles;
@@ -118,6 +206,7 @@ class WebGLitter {
 		}
 	}
 
+	/** Restart the system by killing all current particles and starting fresh. */
 	restart() {
 		const max = this.config.maxParticles;
 		for (let i = 0; i < max; i++) {
@@ -207,15 +296,14 @@ class WebGLitter {
 			for (let i = 0; i < stops.length - 1; i++) {
 				const s1 = stops[i];
 				const s2 = stops[i + 1];
-				if (t >= s1.time && t <= s2.time) {
-					const f = (t - s1.time) / (s2.time - s1.time);
-					return [
-						s1.value[0] + (s2.value[0] - s1.value[0]) * f,
-						s1.value[1] + (s2.value[1] - s1.value[1]) * f,
-						s1.value[2] + (s2.value[2] - s1.value[2]) * f,
-						s1.value[3] + (s2.value[3] - s1.value[3]) * f,
-					];
-				}
+				if (t < s1.time || t > s2.time) continue;
+				const f = (t - s1.time) / (s2.time - s1.time);
+				return [
+					s1.value[0] + (s2.value[0] - s1.value[0]) * f,
+					s1.value[1] + (s2.value[1] - s1.value[1]) * f,
+					s1.value[2] + (s2.value[2] - s1.value[2]) * f,
+					s1.value[3] + (s2.value[3] - s1.value[3]) * f,
+				];
 			}
 			return stops[0].value;
 		};
@@ -586,15 +674,6 @@ class WebGLitter {
 		const follow = this.config.interactionType === "follow" && this.pointer.active;
 		const ex = follow ? this.pointer.normalizedX * this.canvas.width : this.config.emitterPosition.x * this.canvas.width;
 		const ey = follow ? this.pointer.normalizedY * this.canvas.height : this.config.emitterPosition.y * this.canvas.height;
-		const ew = this.config.emitterSize.x * this.canvas.width;
-		const eh = this.config.emitterSize.y * this.canvas.height;
-
-		const eShape = this.config.emitterShape || "rectangle";
-		const eFill = this.config.emitterFill || "fill";
-		const eAngle = this.config.emitterAngle * this.degToRad;
-		const eSpread = this.config.emitterSpread * this.degToRad;
-		const bSpeed = this.config.particleSpeed;
-		const bLife = this.config.particleLife;
 
 		const px = this.pointer.normalizedX * this.canvas.width;
 		const py = this.pointer.normalizedY * this.canvas.height;
@@ -608,20 +687,8 @@ class WebGLitter {
 		const swayAmount = this.config.swayAmount;
 		const swayFreq = this.config.swayFrequency;
 
-		const sRandom = this.config.scaleRandom || { min: 50, max: 100 };
-		const sMin = sRandom.min / 100.0;
-		const sMax = sRandom.max / 100.0;
 		const isVariableScale = this.config.scaleMode === "variable";
-
-		const rRandom = this.config.rotationRandom || { min: 0, max: 360 };
-		const rRotMin = rRandom.min * this.degToRad;
-		const rRotMax = rRandom.max * this.degToRad;
-		const isVariableRot = this.config.rotationMode === "variable";
-		const constRotRad = (this.config.rotationConstant || 0) * this.degToRad;
-
-		const speedMode = this.config.speedMode || "constant";
-		const isVariableSpeed = speedMode === "variable";
-		const speedRandom = this.config.speedRandom || { min: 10, max: 100 };
+		const isVariableSpeed = this.config.speedMode === "variable";
 		const speedArr = this.speedGradientArray;
 
 		for (let i = 0; i < count; i++) {
@@ -659,51 +726,9 @@ class WebGLitter {
 				cpu[i8 + 1] += cpu[i8 + 3] * dt * speedFactor;
 			} else if (this.spawnRemainder >= 1.0) {
 				this.spawnRemainder -= 1.0;
-				if (eShape === "circle") {
-					let angle = Math.random() * Math.PI * 2;
-					let r = eFill === "fill" ? Math.sqrt(Math.random()) : 1;
-					cpu[i8] = ex + Math.cos(angle) * (ew * 0.5) * r;
-					cpu[i8 + 1] = ey + Math.sin(angle) * (eh * 0.5) * r;
-				} else {
-					if (eFill === "rim" && (ew > 0 || eh > 0)) {
-						if (Math.random() < ew / (ew + eh)) {
-							cpu[i8] = ex + (Math.random() - 0.5) * ew;
-							cpu[i8 + 1] = ey + (Math.random() > 0.5 ? 0.5 : -0.5) * eh;
-						} else {
-							cpu[i8] = ex + (Math.random() > 0.5 ? 0.5 : -0.5) * ew;
-							cpu[i8 + 1] = ey + (Math.random() - 0.5) * eh;
-						}
-					} else {
-						cpu[i8] = ex + (Math.random() - 0.5) * ew;
-						cpu[i8 + 1] = ey + (Math.random() - 0.5) * eh;
-					}
-				}
-
-				let angle = eAngle + (Math.random() - 0.5) * eSpread;
-				let speed;
-				if (speedMode === "variable") {
-					speed = speedRandom.min + Math.random() * (speedRandom.max - speedRandom.min);
-				} else {
-					speed = bSpeed;
-				}
-
-				cpu[i8 + 2] = Math.cos(angle) * speed;
-				cpu[i8 + 3] = Math.sin(angle) * speed;
-
-				age = 0.0;
-				life = bLife + Math.random() * bLife * 0.5;
-				cpu[i8 + 5] = life;
-				cpu[i8 + 6] = Math.random() * Math.PI * 2;
-				cpu[i8 + 7] = isVariableRot
-					? rRotMin + Math.random() * (rRotMax - rRotMin)
-					: constRotRad;
-
-				if (isVariableScale) {
-					gpu[i6 + 3] = sMin + Math.random() * (sMax - sMin);
-				} else {
-					gpu[i6 + 3] = 1.0;
-				}
-				gpu[i6 + 5] = Math.random();
+				this.#spawnOne(i, ex, ey);
+				age = cpu[i8 + 4];
+				life = cpu[i8 + 5];
 			} else {
 				age = life + 0.1;
 			}
@@ -743,51 +768,7 @@ class WebGLitter {
 
 		while (this.spawnRemainder >= 1.0 && this.activeParticles < this.config.maxParticles) {
 			this.spawnRemainder -= 1.0;
-			let i = Math.floor(this.activeParticles);
-			let i8 = i * 8;
-			let i6 = i * 6;
-
-			if (eShape === "circle") {
-				let angle = Math.random() * Math.PI * 2;
-				let r = eFill === "fill" ? Math.sqrt(Math.random()) : 1;
-				cpu[i8] = ex + Math.cos(angle) * (ew * 0.5) * r;
-				cpu[i8 + 1] = ey + Math.sin(angle) * (eh * 0.5) * r;
-			} else {
-				if (eFill === "rim" && (ew > 0 || eh > 0)) {
-					if (Math.random() < ew / (ew + eh)) {
-						cpu[i8] = ex + (Math.random() - 0.5) * ew;
-						cpu[i8 + 1] = ey + (Math.random() > 0.5 ? 0.5 : -0.5) * eh;
-					} else {
-						cpu[i8] = ex + (Math.random() > 0.5 ? 0.5 : -0.5) * ew;
-						cpu[i8 + 1] = ey + (Math.random() - 0.5) * eh;
-					}
-				} else {
-					cpu[i8] = ex + (Math.random() - 0.5) * ew;
-					cpu[i8 + 1] = ey + (Math.random() - 0.5) * eh;
-				}
-			}
-
-			let angle = eAngle + (Math.random() - 0.5) * eSpread;
-			let speed = bSpeed + Math.random() * bSpeed * 0.5;
-
-			cpu[i8 + 2] = Math.cos(angle) * speed;
-			cpu[i8 + 3] = Math.sin(angle) * speed;
-
-			cpu[i8 + 4] = 0.0;
-			let life = bLife + Math.random() * bLife * 0.5;
-			cpu[i8 + 5] = life;
-			cpu[i8 + 6] = Math.random() * Math.PI * 2;
-			cpu[i8 + 7] = isVariableRot
-				? rRotMin + Math.random() * (rRotMax - rRotMin)
-				: constRotRad;
-
-			gpu[i6] = cpu[i8];
-			gpu[i6 + 1] = cpu[i8 + 1];
-			gpu[i6 + 2] = 0.0;
-			gpu[i6 + 3] = isVariableScale ? (sMin + Math.random() * (sMax - sMin)) : 1.0;
-			gpu[i6 + 4] = cpu[i8 + 7]; // baseRotation
-			gpu[i6 + 5] = Math.random(); 
-
+			this.#spawnOne(Math.floor(this.activeParticles), ex, ey);
 			this.activeParticles++;
 		}
 

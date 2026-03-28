@@ -184,6 +184,7 @@ export const exportHTML = async (PARAMS) => {
 <div class="controls">
 	<button id="btnPause">Pause</button>
 	<button id="btnEmit">Stop emitting</button>
+	<button id="btnEmitAt">Emit 500 particles at (0.5, 0.5)</button>
 	<button id="btnRestart">Restart</button>
 	<button id="btnDestroy">Destroy</button>
 	<label>Emission rate
@@ -240,6 +241,11 @@ btnEmit.addEventListener("click", () => {
 		btnEmit.textContent = "Stop emitting";
 		btnEmit.classList.remove("active");
 	}
+});
+
+// Emit at specific position — spawns a burst of particles at the given normalized coordinates (0..1)
+btnEmitAt.addEventListener("click", () => {
+	particles.emitAt(0.5, 0.5, 500);
 });
 
 // Restart — kills all current particles and starts fresh
