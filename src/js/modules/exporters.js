@@ -173,7 +173,7 @@ export const exportHTML = async (PARAMS) => {
 		canvas {
 			display: block;
 			max-width: 100%;
-			background: #000000ff;
+			background: ${PARAMS.canvas.backgroundColor || "#000"};
 		}
 	</style>
 </head>
