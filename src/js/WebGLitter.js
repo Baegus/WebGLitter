@@ -109,6 +109,10 @@ class WebGLitter {
 		if (newConfig.rotationGradient !== undefined) {
 			this.updateRotationTexture();
 		}
+		if (newConfig.speedGradient !== undefined || newConfig.speedMode !== undefined) {
+			this.updateSpeedGradientArray();
+		}
+
 		if (newConfig.particleImage !== undefined) {
 			this.updateParticleImage();
 		}
@@ -199,16 +203,21 @@ class WebGLitter {
 			if (t <= stops[0].time) return stops[0].value;
 			const last = stops[stops.length - 1];
 			if (t >= last.time) return last.value;
-			let lo = 0;
-			while (lo < stops.length - 2 && stops[lo + 1].time <= t) lo++;
-			const a = stops[lo], b = stops[lo + 1];
-			const f = (t - a.time) / (b.time - a.time);
-			return [
-				a.value[0] + f * (b.value[0] - a.value[0]),
-				a.value[1] + f * (b.value[1] - a.value[1]),
-				a.value[2] + f * (b.value[2] - a.value[2]),
-				a.value[3] + f * (b.value[3] - a.value[3]),
-			];
+
+			for (let i = 0; i < stops.length - 1; i++) {
+				const s1 = stops[i];
+				const s2 = stops[i + 1];
+				if (t >= s1.time && t <= s2.time) {
+					const f = (t - s1.time) / (s2.time - s1.time);
+					return [
+						s1.value[0] + (s2.value[0] - s1.value[0]) * f,
+						s1.value[1] + (s2.value[1] - s1.value[1]) * f,
+						s1.value[2] + (s2.value[2] - s1.value[2]) * f,
+						s1.value[3] + (s2.value[3] - s1.value[3]) * f,
+					];
+				}
+			}
+			return stops[0].value;
 		};
 
 		const defaultFlat = [{ time: 0, value: [255, 255, 255, 0] }, { time: 1, value: [255, 255, 255, 0] }];
@@ -224,8 +233,7 @@ class WebGLitter {
 			data[i * 4 + 0] = 255;
 			data[i * 4 + 1] = 255;
 			data[i * 4 + 2] = 255;
-			// alpha channel encodes normalized rotation (0..1 maps to 0..2π)
-			data[i * 4 + 3] = (s[3] * 255 + 0.5) | 0;
+			data[i * 4 + 3] = s[3] * 255;
 		}
 
 		if (!this.rotationTexture) this.rotationTexture = gl.createTexture();
@@ -235,6 +243,40 @@ class WebGLitter {
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+	}
+
+	updateSpeedGradientArray() {
+		const width = 256;
+
+		const sampleGradient = (stops, t) => {
+			if (t <= stops[0].time) return stops[0].value;
+			const last = stops[stops.length - 1];
+			if (t >= last.time) return last.value;
+
+			for (let i = 0; i < stops.length - 1; i++) {
+				const s1 = stops[i];
+				const s2 = stops[i + 1];
+				if (t >= s1.time && t <= s2.time) {
+					const f = (t - s1.time) / (s2.time - s1.time);
+					return s1.value[3] + (s2.value[3] - s1.value[3]) * f;
+				}
+			}
+			return stops[0].value[3];
+		};
+
+		const defaultFlat = [{ time: 0, value: [255, 255, 255, 1] }, { time: 1, value: [255, 255, 255, 1] }];
+		const speedStops = (this.config.speedGradient && this.config.speedGradient.length > 0)
+			? [...this.config.speedGradient].sort((a, b) => a.time - b.time)
+			: defaultFlat;
+
+		if (!this.speedGradientArray) {
+			this.speedGradientArray = new Float32Array(width);
+		}
+		const inv = 1 / (width - 1);
+		for (let i = 0; i < width; i++) {
+			const t = i * inv;
+			this.speedGradientArray[i] = sampleGradient(speedStops, t);
+		}
 	}
 
 	createFallbackParticleTexture() {
@@ -577,6 +619,11 @@ class WebGLitter {
 		const isVariableRot = this.config.rotationMode === "variable";
 		const constRotRad = (this.config.rotationConstant || 0) * this.degToRad;
 
+		const speedMode = this.config.speedMode || "constant";
+		const isVariableSpeed = speedMode === "variable";
+		const speedRandom = this.config.speedRandom || { min: 10, max: 100 };
+		const speedArr = this.speedGradientArray;
+
 		for (let i = 0; i < count; i++) {
 			let i8 = i * 8;
 			let i6 = i * 6;
@@ -585,6 +632,14 @@ class WebGLitter {
 			let life = cpu[i8 + 5];
 
 			if (age < life) {
+				let speedFactor = 1.0;
+				if (isVariableSpeed && speedArr) {
+					let idx = Math.floor((age / life) * 255);
+					if (idx < 0) idx = 0;
+					if (idx > 255) idx = 255;
+					speedFactor = speedArr[idx];
+				}
+
 				if (repel) {
 					let dx = cpu[i8] - px;
 					let dy = cpu[i8 + 1] - py;
@@ -600,8 +655,8 @@ class WebGLitter {
 				cpu[i8 + 2] += gravX * dt;
 				cpu[i8 + 3] += gravY * dt;
 
-				cpu[i8] += cpu[i8 + 2] * dt;
-				cpu[i8 + 1] += cpu[i8 + 3] * dt;
+				cpu[i8] += cpu[i8 + 2] * dt * speedFactor;
+				cpu[i8 + 1] += cpu[i8 + 3] * dt * speedFactor;
 			} else if (this.spawnRemainder >= 1.0) {
 				this.spawnRemainder -= 1.0;
 				if (eShape === "circle") {
@@ -625,7 +680,12 @@ class WebGLitter {
 				}
 
 				let angle = eAngle + (Math.random() - 0.5) * eSpread;
-				let speed = bSpeed + Math.random() * bSpeed * 0.5;
+				let speed;
+				if (speedMode === "variable") {
+					speed = speedRandom.min + Math.random() * (speedRandom.max - speedRandom.min);
+				} else {
+					speed = bSpeed;
+				}
 
 				cpu[i8 + 2] = Math.cos(angle) * speed;
 				cpu[i8 + 3] = Math.sin(angle) * speed;

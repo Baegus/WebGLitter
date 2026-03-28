@@ -2,7 +2,13 @@ export const DEFAULT_CONFIG = {
 	maxParticles: 100000,
 	emissionRate: 5000,
 	particleLife: 2.0,
+	speedMode: "constant",
 	particleSpeed: 100.0,
+	speedRandom: { min: 10.0, max: 100.0 },
+	speedGradient: [
+		{ time: 0, value: [255, 255, 255, 1] },
+		{ time: 1, value: [255, 255, 255, 1] }
+	],
 	particleSize: 50.0,
 	particleDimensions: { x: 32, y: 32 },
 	fpsLimit: 60,

@@ -57,6 +57,7 @@ export const uiToLibrary = (uiParams) => {
 	if (config.opacityGradient) config.opacityGradient = mapColorToLibrary(config.opacityGradient);
 	if (config.scaleGradient) config.scaleGradient = mapColorToLibrary(config.scaleGradient);
 	if (config.rotationGradient) config.rotationGradient = mapColorToLibrary(config.rotationGradient);
+	if (config.speedGradient) config.speedGradient = mapColorToLibrary(config.speedGradient);
 
 	return config;
 }
@@ -75,6 +76,7 @@ export const libraryToUI = (libConfig) => {
 	if (params.opacityGradient) params.opacityGradient = mapColorToUI(params.opacityGradient);
 	if (params.scaleGradient) params.scaleGradient = mapColorToUI(params.scaleGradient);
 	if (params.rotationGradient) params.rotationGradient = mapColorToUI(params.rotationGradient);
+	if (params.speedGradient) params.speedGradient = mapColorToUI(params.speedGradient);
 
 	params.colorMode = params.randomColor ? "random" : "variable";
 	delete params.randomColor;

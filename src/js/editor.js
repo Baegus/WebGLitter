@@ -18,7 +18,10 @@ const PARAMS = {
 	particleSystem: {
 		emissionRate: DEFAULT_CONFIG.emissionRate,
 		particleLife: DEFAULT_CONFIG.particleLife,
+		speedMode: DEFAULT_CONFIG.speedMode || "constant",
 		particleSpeed: DEFAULT_CONFIG.particleSpeed,
+		speedRandom: { ...DEFAULT_CONFIG.speedRandom } || { min: 10, max: 100 },
+		speedGradient: null,
 		particleSize: DEFAULT_CONFIG.particleSize,
 		scaleMode: DEFAULT_CONFIG.scaleMode || "constant",
 		scaleGradient: null,
@@ -78,7 +81,7 @@ const mapToLibrary = (key, val) => {
 	if (key === "emitterPosition") {
 		return { x: (val.x + 1) / 2, y: (val.y + 1) / 2 };
 	}
-	if (key === "colorGradient" || key === "opacityGradient" || key === "scaleGradient" || key === "rotationGradient") {
+	if (key === "colorGradient" || key === "opacityGradient" || key === "scaleGradient" || key === "rotationGradient" || key === "speedGradient") {
 		return val.map(p => ({
 			time: p.time,
 			value: [p.value.r, p.value.g, p.value.b, p.value.a]
@@ -280,7 +283,7 @@ const applyPreset = (preset) => {
 	const defaultsUI = libraryToUI(DEFAULT_CONFIG);
 	const applyData = (data) => {
 		Object.keys(data).forEach(key => {
-			if (key === "colorGradient" || key === "opacityGradient" || key === "scaleGradient" || key === "rotationGradient") {
+			if (key === "colorGradient" || key === "opacityGradient" || key === "scaleGradient" || key === "rotationGradient" || key === "speedGradient") {
 				return;
 			}
 			if (typeof data[key] === "object" && data[key] !== null && PARAMS.particleSystem[key]) {
@@ -315,6 +318,7 @@ const applyPreset = (preset) => {
 	updateGradientBlade("opacityGradient", uiData.opacityGradient);
 	updateGradientBlade("scaleGradient", uiData.scaleGradient);
 	updateGradientBlade("rotationGradient", uiData.rotationGradient);
+	updateGradientBlade("speedGradient", uiData.speedGradient);
 
 	// Sync direction and angle
 	if (preset.emitterDirection) {
@@ -330,6 +334,7 @@ const applyPreset = (preset) => {
 	
 	// Update manual visibility logic
 	updateScaleVisibility(PARAMS.particleSystem.scaleMode);
+	updateSpeedVisibility(PARAMS.particleSystem.speedMode);
 	updateSwayVisibility(PARAMS.particleSystem.swayType);
 	updateInteractionVisibility(PARAMS.particleSystem.interactionType);
 	updateRotationVisibility(PARAMS.particleSystem.rotationMode);
@@ -584,7 +589,61 @@ updateRotationVisibility(PARAMS.particleSystem.rotationMode);
 
 const lifetimeFolder = particlesFolder.addFolder({ title: "Lifetime & Motion" });
 bindParticle(lifetimeFolder, "particleLife", { min: 0.1, max: 10.0, step: 0.1, label: "Lifetime (s)" });
-bindParticle(lifetimeFolder, "particleSpeed", { min: 0, max: 1000, step: 1, label: "Particle Speed" });
+
+const speedModeBinding = bindParticle(lifetimeFolder, "speedMode", {
+	options: {
+		"Constant": "constant",
+		"Variable": "variable",
+	},
+	label: "Speed Mode"
+}, (val) => {
+	if (isLoadingPreset) return;
+
+	let newPts = [];
+	if (val === "constant") {
+		newPts = [
+			{ time: 0, value: { r: 255, g: 255, b: 255, a: 1 } },
+			{ time: 1, value: { r: 255, g: 255, b: 255, a: 1 } }
+		];
+	} else if (val === "variable") {
+		newPts = [
+			{ time: 0, value: { r: 255, g: 255, b: 255, a: 0 } },
+			{ time: 1, value: { r: 255, g: 255, b: 255, a: 1 } }
+		];
+	}
+
+	const blade = blades.speedGradient;
+	if (blade) {
+		PARAMS.particleSystem.speedGradient = updateGradientBladeValue(blade, newPts, debugging);
+	}
+
+	particleSystem.updateConfig({ 
+		speedMode: val,
+		speedGradient: mapToLibrary("speedGradient", PARAMS.particleSystem.speedGradient)
+	});
+	updateSpeedVisibility(val);
+});
+
+const speedConstantBinding = bindParticle(lifetimeFolder, "particleSpeed", { min: 0, max: 1000, step: 1, label: "Speed" });
+const speedRandomBinding = bindParticle(lifetimeFolder, "speedRandom", {
+	min: 0, max: 1000, step: 1, label: "Speed Range"
+}, (val) => {
+	if (isLoadingPreset) return;
+	particleSystem.updateConfig({ speedRandom: val });
+});
+
+const speedGradientBlade = bindGradient(lifetimeFolder, "speedGradient", "Speed Gradient", [
+	{ time: 0, value: { r: 255, g: 255, b: 255, a: 1 } },
+	{ time: 1, value: { r: 255, g: 255, b: 255, a: 1 } },
+], false, true);
+
+function updateSpeedVisibility(val) {
+	const isConstant = val === "constant";
+	speedConstantBinding.hidden = !isConstant;
+	speedRandomBinding.hidden = isConstant;
+	blades.speedGradient.hidden = isConstant;
+}
+updateSpeedVisibility(PARAMS.particleSystem.speedMode);
 
 const swayTypeBinding = bindParticle(lifetimeFolder, "swayType", {
 	options: {
