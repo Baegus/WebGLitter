@@ -22,6 +22,10 @@ class WebGLitter {
 		this.paused = false;
 		this.emitting = true;
 
+		this._burst = { phase: "emitting", pauseLeft: 0 };
+		this._trailLastX = -1;
+		this._trailLastY = -1;
+
 		this.degToRad = Math.PI / 180.0;
 
 
@@ -205,6 +209,12 @@ class WebGLitter {
 		if (newConfig.particleImage !== undefined) {
 			this.updateParticleImage();
 		}
+		if (newConfig.emitMode !== undefined) {
+			this._burst = { phase: "emitting", pauseLeft: 0 };
+			this._trailLastX = -1;
+			this._trailLastY = -1;
+			this.spawnRemainder = 0;
+		}
 	}
 
 	/** Restart the system by killing all current particles and starting fresh. */
@@ -216,7 +226,11 @@ class WebGLitter {
 			this.cpuData[i * 8 + 6] = Math.random() * Math.PI * 2;
 		}
 		this.activeParticles = 0;
+		this.spawnRemainder = 0;
 		this.lastTime = performance.now();
+		this._burst = { phase: "emitting", pauseLeft: 0 };
+		this._trailLastX = -1;
+		this._trailLastY = -1;
 	}
 
 	updateGradientTexture() {
@@ -660,8 +674,44 @@ class WebGLitter {
 		const dt = Math.min((now - this.lastTime) / 1000.0, 0.1);
 		this.lastTime = now;
 
-		if (this.emitting && (this.config.interactionType !== "follow" || this.pointer.active)) {
-			this.spawnRemainder += this.config.emissionRate * dt;
+		const follow = this.config.interactionType === "follow" && this.pointer.active;
+		const ex = follow ? this.pointer.normalizedX * this.canvas.width : this.config.emitterPosition.x * this.canvas.width;
+		const ey = follow ? this.pointer.normalizedY * this.canvas.height : this.config.emitterPosition.y * this.canvas.height;
+
+		// Reset trail tracking whenever the emitter source changes discontinuously
+		if (follow !== this._trailWasFollow) {
+			this._trailLastX = -1;
+			this._trailLastY = -1;
+		}
+		this._trailWasFollow = follow;
+
+		if (this.emitting) {
+			const emitMode = this.config.emitMode || "continuous";
+			const canEmit = this.config.interactionType !== "follow" || this.pointer.active;
+			if (emitMode === "continuous") {
+				if (canEmit) this.spawnRemainder += this.config.emissionRate * dt;
+			} else if (emitMode === "burst") {
+				if (canEmit) {
+					const b = this._burst;
+					if (b.phase === "emitting") {
+						this.spawnRemainder += this.config.burstCount || 100;
+						const bp = this.config.burstPause || { min: 0.5, max: 1.5 };
+						b.pauseLeft = bp.min + Math.random() * (bp.max - bp.min);
+						b.phase = "paused";
+					} else {
+						b.pauseLeft -= dt;
+						if (b.pauseLeft <= 0) b.phase = "emitting";
+					}
+				}
+			} else if (emitMode === "trail") {
+				if (this._trailLastX >= 0) {
+					const dx = ex - this._trailLastX;
+					const dy = ey - this._trailLastY;
+					this.spawnRemainder += Math.sqrt(dx * dx + dy * dy) * (this.config.trailDensity || 1.0);
+				}
+				this._trailLastX = ex;
+				this._trailLastY = ey;
+			}
 		}
 
 		const count = Math.floor(this.activeParticles);
@@ -672,9 +722,6 @@ class WebGLitter {
 
 		const cpu = this.cpuData;
 		const gpu = this.gpuData;
-		const follow = this.config.interactionType === "follow" && this.pointer.active;
-		const ex = follow ? this.pointer.normalizedX * this.canvas.width : this.config.emitterPosition.x * this.canvas.width;
-		const ey = follow ? this.pointer.normalizedY * this.canvas.height : this.config.emitterPosition.y * this.canvas.height;
 
 		const px = this.pointer.normalizedX * this.canvas.width;
 		const py = this.pointer.normalizedY * this.canvas.height;

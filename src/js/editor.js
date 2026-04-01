@@ -35,6 +35,10 @@ const PARAMS = {
 		emitterAngle: DEFAULT_CONFIG.emitterAngle,
 		emitterDirection: { x: 1, y: 0 }, // Will be updated by Sync logic below
 		emitterSpread: DEFAULT_CONFIG.emitterSpread,
+		emitMode: DEFAULT_CONFIG.emitMode || "continuous",
+		burstCount: DEFAULT_CONFIG.burstCount || 100,
+		burstPause: { ...(DEFAULT_CONFIG.burstPause || { min: 0.5, max: 1.5 }) },
+		trailDensity: DEFAULT_CONFIG.trailDensity || 2.0,
 		particleShape: DEFAULT_CONFIG.particleShape,
 		particleImage: DEFAULT_CONFIG.particleImage || "",
 		scaleMode: DEFAULT_CONFIG.scaleMode,
@@ -343,6 +347,7 @@ const applyPreset = (preset) => {
 	updateInteractionVisibility(PARAMS.particleSystem.interactionType);
 	updateRotationVisibility(PARAMS.particleSystem.rotationMode);
 	updateColorVisibility(PARAMS.particleSystem.colorMode);
+	updateEmitModeVisibility(PARAMS.particleSystem.emitMode || "continuous");
 	imageBinding.hidden = PARAMS.particleSystem.particleShape !== "image";
 	updateExportVisibility();
 
@@ -772,7 +777,46 @@ const updateColorVisibility = (mode) => {
 updateColorVisibility(PARAMS.particleSystem.colorMode);
 const emitterFolder = pane.addFolder({ title: "Emitter" });
 
-bindParticle(emitterFolder, "emissionRate", { min: 1, max: 10000, step: 5, label: "Emission Rate" });
+const emitModeBinding = bindParticle(emitterFolder, "emitMode", {
+	options: {
+		"Continuous": "continuous",
+		"Burst": "burst",
+		"Trail": "trail",
+	},
+	label: "Emit Mode"
+}, (val) => {
+	if (isLoadingPreset) return;
+	particleSystem.updateConfig({ emitMode: val });
+	updateEmitModeVisibility(val);
+});
+
+const emissionRateBinding = bindParticle(emitterFolder, "emissionRate", { min: 1, max: 10000, step: 5, label: "Emission Rate" });
+
+const burstCountBinding = bindParticle(emitterFolder, "burstCount", {
+	min: 1, max: 10000, step: 1, label: "Burst Count"
+});
+
+const burstPauseBinding = bindParticle(emitterFolder, "burstPause", {
+	min: 0, max: 30, step: 0.1, label: "Pause Range (s)"
+}, (val) => {
+	if (isLoadingPreset) return;
+	particleSystem.updateConfig({ burstPause: val });
+});
+
+const trailDensityBinding = bindParticle(emitterFolder, "trailDensity", {
+	min: 0.1, max: 20, step: 0.1, label: "Trail Density"
+});
+
+const updateEmitModeVisibility = (val) => {
+	const isContinuous = val === "continuous";
+	const isBurst = val === "burst";
+	const isTrail = val === "trail";
+	emissionRateBinding.hidden = !isContinuous;
+	burstCountBinding.hidden = !isBurst;
+	burstPauseBinding.hidden = !isBurst;
+	trailDensityBinding.hidden = !isTrail;
+};
+updateEmitModeVisibility(PARAMS.particleSystem.emitMode);
 
 const emitterPosBinding = bindParticle(emitterFolder, "emitterPosition", {	x: { min: -1, max: 1, step: 0.01 },
 	y: { min: -1, max: 1, step: 0.01 },
