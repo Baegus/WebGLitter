@@ -6,7 +6,7 @@ import * as EssentialsPlugin from "@tweakpane/plugin-essentials";
 import WebGLitter from "./WebGLitter.js";
 import { exportJSON, exportJSONZip, exportJSONBase64, exportHTML, uiToLibrary, libraryToUI } from "./modules/exporters";
 import { presets, DEFAULT_CONFIG } from "./modules/presets";
-import { updateGradientBladeValue, enableTouchDeleteForGradient } from "./modules/tweakpaneUtils.js";
+import { updateGradientBladeValue, enableTouchDeleteForGradient, patchPaneForTextOverride, withConstraintsBypass } from "./modules/tweakpaneUtils.js";
 
 const debugging = process.env.DEBUG == "true";
 
@@ -79,6 +79,8 @@ const pane = new Pane({
 pane.registerPlugin(GradientPluginBundle);
 pane.registerPlugin(TweakpaneFileImportPlugin.default || TweakpaneFileImportPlugin);
 pane.registerPlugin(EssentialsPlugin);
+
+patchPaneForTextOverride(pane);
 
 let particleSystem; // Shared system instance
 const blades = {}; // Store blade references
@@ -338,7 +340,7 @@ const applyPreset = (preset) => {
 		PARAMS.particleSystem.emitterDirection.y = Math.sin(rad);
 	}
 
-	pane.refresh();
+	withConstraintsBypass(() => pane.refresh());
 	
 	// Update manual visibility logic
 	updateScaleVisibility(PARAMS.particleSystem.scaleMode);
