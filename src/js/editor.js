@@ -52,6 +52,9 @@ const PARAMS = {
 		swayType: DEFAULT_CONFIG.swayType,
 		swayAmount: DEFAULT_CONFIG.swayAmount,
 		swayFrequency: DEFAULT_CONFIG.swayFrequency,
+		noiseAmount: DEFAULT_CONFIG.noiseAmount,
+		noiseFrequency: DEFAULT_CONFIG.noiseFrequency,
+		noiseSpeed: DEFAULT_CONFIG.noiseSpeed,
 		rotationMode: DEFAULT_CONFIG.rotationMode,
 		rotationConstant: DEFAULT_CONFIG.rotationConstant,
 		rotationRandom: { ...DEFAULT_CONFIG.rotationRandom },
@@ -680,6 +683,17 @@ bindParticle(physicsFolder, "gravity", {
 
 bindParticle(physicsFolder, "drag", {
 	min: 0, max: 10, step: 0.1, label: "Drag"
+});
+
+const noiseFolder = physicsFolder.addFolder({ title: "Turbulence (Noise)" });
+bindParticle(noiseFolder, "noiseAmount", {
+	min: 0, max: 1000, step: 1, label: "Amount"
+});
+bindParticle(noiseFolder, "noiseFrequency", {
+	min: 0.001, max: 0.05, step: 0.001, label: "Frequency"
+});
+bindParticle(noiseFolder, "noiseSpeed", {
+	min: 0, max: 5, step: 0.01, label: "Speed"
 });
 
 const colorModeBinding = bindParticle(particlesFolder, "colorMode", {

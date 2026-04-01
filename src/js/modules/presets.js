@@ -29,6 +29,9 @@ export const DEFAULT_CONFIG = {
 	swayType: "none",
 	swayAmount: 20,
 	swayFrequency: 2.0,
+	noiseAmount: 0,
+	noiseFrequency: 0.005,
+	noiseSpeed: 0.5,
 	scaleMode: "constant",
 	scaleRandom: { min: 28, max: 60 },
 	scaleGradient: [

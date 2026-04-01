@@ -1,4 +1,5 @@
 import { DEFAULT_CONFIG } from "./modules/presets.js";
+import { simplex3 } from "./modules/simplex.js";
 
 const debugging = process.env.DEBUG == "true";
 
@@ -688,6 +689,11 @@ class WebGLitter {
 		const swayAmount = this.config.swayAmount;
 		const swayFreq = this.config.swayFrequency;
 
+		const noiseAmount = this.config.noiseAmount || 0;
+		const noiseFreq = this.config.noiseFrequency || 0.01;
+		const noiseSpeed = this.config.noiseSpeed || 1.0;
+		const globalTimeYOffset = now * 0.001 * noiseSpeed;
+
 		const isVariableScale = this.config.scaleMode === "variable";
 		const isVariableSpeed = this.config.speedMode === "variable";
 		const speedArr = this.speedGradientArray;
@@ -733,8 +739,17 @@ class WebGLitter {
 					}
 				}
 
-				cpu[i8] += cpu[i8 + 2] * dt * speedFactor;
-				cpu[i8 + 1] += cpu[i8 + 3] * dt * speedFactor;
+				let nx = 0, ny = 0;
+				if (noiseAmount > 0) {
+					const nx1 = cpu[i8] * noiseFreq;
+					const ny1 = cpu[i8 + 1] * noiseFreq;
+					const nz1 = cpu[i8 + 6] + globalTimeYOffset; // Use phase for variation
+					nx = simplex3(nx1, ny1, nz1) * noiseAmount;
+					ny = simplex3(nx1 + 100.5, ny1 + 100.5, nz1) * noiseAmount;
+				}
+
+				cpu[i8] += (cpu[i8 + 2] + nx) * dt * speedFactor;
+				cpu[i8 + 1] += (cpu[i8 + 3] + ny) * dt * speedFactor;
 			} else if (this.spawnRemainder >= 1.0) {
 				this.spawnRemainder -= 1.0;
 				this.#spawnOne(i, ex, ey);
