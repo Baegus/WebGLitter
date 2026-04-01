@@ -24,6 +24,7 @@ export const DEFAULT_CONFIG = {
 	repelRadius: 100.0,
 	repelStrength: 500.0,
 	gravity: { x: 0, y: 0 },
+	drag: 0.0,
 	blendMode: "additive",
 	swayType: "none",
 	swayAmount: 20,

@@ -47,6 +47,7 @@ const PARAMS = {
 		repelRadius: DEFAULT_CONFIG.repelRadius,
 		repelStrength: DEFAULT_CONFIG.repelStrength,
 		gravity: { ...DEFAULT_CONFIG.gravity },
+		drag: DEFAULT_CONFIG.drag,
 		blendMode: DEFAULT_CONFIG.blendMode,
 		swayType: DEFAULT_CONFIG.swayType,
 		swayAmount: DEFAULT_CONFIG.swayAmount,
@@ -675,6 +676,10 @@ bindParticle(physicsFolder, "gravity", {
 	x: { min: -2000, max: 2000, step: 1 },
 	y: { min: -2000, max: 2000, step: 1 },
 	label: "Gravity (px/s²)"
+});
+
+bindParticle(physicsFolder, "drag", {
+	min: 0, max: 10, step: 0.1, label: "Drag"
 });
 
 const colorModeBinding = bindParticle(particlesFolder, "colorMode", {

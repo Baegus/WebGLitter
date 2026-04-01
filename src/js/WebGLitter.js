@@ -682,6 +682,7 @@ class WebGLitter {
 		const rStrength = this.config.repelStrength;
 		const gravX = this.config.gravity.x;
 		const gravY = this.config.gravity.y;
+		const dragObj = this.config.drag;
 
 		const swayType = this.config.swayType;
 		const swayAmount = this.config.swayAmount;
@@ -721,6 +722,16 @@ class WebGLitter {
 
 				cpu[i8 + 2] += gravX * dt;
 				cpu[i8 + 3] += gravY * dt;
+
+				if (dragObj > 0) {
+					const speed = Math.sqrt(cpu[i8 + 2] * cpu[i8 + 2] + cpu[i8 + 3] * cpu[i8 + 3]);
+					if (speed > 0) {
+						const drop = speed * dragObj * dt;
+						const multiplier = Math.max(0.0, speed - drop) / speed;
+						cpu[i8 + 2] *= multiplier;
+						cpu[i8 + 3] *= multiplier;
+					}
+				}
 
 				cpu[i8] += cpu[i8 + 2] * dt * speedFactor;
 				cpu[i8 + 1] += cpu[i8 + 3] * dt * speedFactor;
